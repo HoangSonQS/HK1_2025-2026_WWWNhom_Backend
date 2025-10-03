@@ -16,7 +16,7 @@ public class EmailSenderUtil {
             MimeMessage message = mailSender.createMimeMessage();
 
             MimeMessageHelper helper = new MimeMessageHelper(message,true,"UTF-8");
-            helper.setFrom("capybookteam@gmail.com");
+            helper.setFrom("sebook4y@gmail.com");
             helper.setTo(toEmail);
             helper.setText(body,true);
             helper.setSubject(subject);
