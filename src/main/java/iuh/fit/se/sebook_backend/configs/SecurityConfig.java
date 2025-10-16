@@ -11,6 +11,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import iuh.fit.se.sebook_backend.configs.CustomerJwtDecoder;
 
 @Configuration
 @EnableWebSecurity
@@ -32,7 +33,14 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.POST, "/api/auth/token").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/accounts/register").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/books/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/books").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF")
+                        .requestMatchers(HttpMethod.PUT, "/api/books/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF")
+                        .requestMatchers(HttpMethod.DELETE, "/api/books/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF")
+                        .requestMatchers("/api/categories/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF")
+
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(customerJwtDecoder)));

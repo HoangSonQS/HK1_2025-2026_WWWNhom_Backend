@@ -1,4 +1,4 @@
-package iuh.fit.se.sebook_backend.config;
+package iuh.fit.se.sebook_backend.configs;
 
 import javax.crypto.spec.SecretKeySpec;
 
