@@ -36,6 +36,9 @@ public class Order {
     @Column(length = 50, nullable = false)
     private String status; // Ví dụ: PENDING, PROCESSING, COMPLETED, CANCELLED
 
+    @Column(name = "payment_code", length = 50, unique = true)
+    private String paymentCode; // Dùng để lưu vnp_TxnRef
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "promotion_id")
     private Promotion appliedPromotion;

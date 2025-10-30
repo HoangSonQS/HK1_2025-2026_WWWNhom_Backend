@@ -59,6 +59,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/promotions/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF")
                         .requestMatchers("/api/promotion-logs/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF")
 
+                        .requestMatchers(HttpMethod.POST, "/api/payment/create-payment").authenticated() // Chỉ người dùng đăng nhập mới được tạo thanh toán
+                        .requestMatchers(HttpMethod.GET, "/api/payment/vnpay-return").permitAll() // VNPay callback phải là public
+
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(customerJwtDecoder)));
