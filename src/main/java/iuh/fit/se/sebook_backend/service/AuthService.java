@@ -7,8 +7,11 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import iuh.fit.se.sebook_backend.dto.AuthenticationRequest;
+import iuh.fit.se.sebook_backend.dto.AuthenticationResponse;
+import iuh.fit.se.sebook_backend.dto.RefreshTokenRequest;
 import iuh.fit.se.sebook_backend.dto.RegisterRequest;
 import iuh.fit.se.sebook_backend.entity.Account;
+import iuh.fit.se.sebook_backend.entity.RefreshToken;
 import iuh.fit.se.sebook_backend.entity.Role;
 import iuh.fit.se.sebook_backend.repository.AccountRepository;
 import iuh.fit.se.sebook_backend.repository.RoleRepository;
@@ -36,8 +39,15 @@ public class AuthService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+
     @Value("${jwt.signerKey}")
     private String SIGNER_KEY;
+
+    @Value("${jwt.valid-duration}")
+    private long VALID_DURATION; // 90000 giây
+
+    @Autowired
+    private RefreshTokenService refreshTokenService;
 
     public void register(RegisterRequest request) {
         if (accountRepository.findByUsername(request.getUsername()).isPresent()) {
@@ -59,7 +69,7 @@ public class AuthService {
         accountRepository.save(account);
     }
 
-    public String login(AuthenticationRequest request) {
+    public AuthenticationResponse login(AuthenticationRequest request) {
         Account account = accountRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new IllegalArgumentException("Invalid username or password"));
 
@@ -67,10 +77,30 @@ public class AuthService {
             throw new IllegalArgumentException("Invalid username or password");
         }
 
-        return generateToken(account);
+        String accessToken = generateToken(account, VALID_DURATION, ChronoUnit.SECONDS);
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(account.getUsername());
+
+        return new AuthenticationResponse(accessToken, refreshToken.getToken());
     }
 
-    private String generateToken(Account account) {
+    /**
+     * Hàm làm mới token
+     */
+    public AuthenticationResponse refreshToken(RefreshTokenRequest request) {
+        // Xác minh refresh token (còn hạn, tồn tại)
+        RefreshToken refreshToken = refreshTokenService.verifyToken(request.getRefreshToken());
+        Account account = refreshToken.getAccount();
+
+        // Tạo access token mới
+        String newAccessToken = generateToken(account, VALID_DURATION, ChronoUnit.SECONDS);
+
+        return new AuthenticationResponse(newAccessToken, request.getRefreshToken());
+    }
+
+    /**
+     * GenerateToken để chấp nhận thời hạn.
+     */
+    private String generateToken(Account account, long duration, ChronoUnit unit) {
         JWSHeader header = new JWSHeader(JWSAlgorithm.HS256);
 
         JWTClaimsSet jwtClaimsSet = new JWTClaimsSet.Builder()
@@ -78,7 +108,7 @@ public class AuthService {
                 .issuer("sebook.com")
                 .issueTime(new Date())
                 .expirationTime(new Date(
-                        Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli()
+                        Instant.now().plus(duration, unit).toEpochMilli()
                 ))
                 .claim("scope", buildScope(account))
                 .build();

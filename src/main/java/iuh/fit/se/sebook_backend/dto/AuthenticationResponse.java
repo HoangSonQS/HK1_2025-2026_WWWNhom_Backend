@@ -12,6 +12,7 @@ import java.util.List;
 @AllArgsConstructor
 public class AuthenticationResponse {
     private String token;
+    private String refreshToken;
 
     @Getter
     @Setter

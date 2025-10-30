@@ -2,6 +2,7 @@ package iuh.fit.se.sebook_backend.controller;
 
 import iuh.fit.se.sebook_backend.dto.AuthenticationRequest;
 import iuh.fit.se.sebook_backend.dto.AuthenticationResponse;
+import iuh.fit.se.sebook_backend.dto.RefreshTokenRequest;
 import iuh.fit.se.sebook_backend.dto.RegisterRequest;
 import iuh.fit.se.sebook_backend.service.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +27,13 @@ public class AuthController {
 
     @PostMapping("/token")
     public ResponseEntity<AuthenticationResponse> login(@RequestBody AuthenticationRequest request) {
-        String token = authService.login(request);
-        return ResponseEntity.ok(new AuthenticationResponse(token));
+        AuthenticationResponse response = authService.login(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthenticationResponse> refreshToken(@RequestBody RefreshTokenRequest request) {
+        AuthenticationResponse response = authService.refreshToken(request);
+        return ResponseEntity.ok(response);
     }
 }
