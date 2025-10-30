@@ -25,15 +25,18 @@ public class OrderService {
     private final SecurityUtil securityUtil;
     private final EmailSenderUtil emailSenderUtil;
 
+    private final NotificationService notificationService;
+
     public OrderService(OrderRepository orderRepository, OrderDetailRepository orderDetailRepository,
                         CartRepository cartRepository, BookRepository bookRepository,
-                        SecurityUtil securityUtil, EmailSenderUtil emailSenderUtil) {
+                        SecurityUtil securityUtil, EmailSenderUtil emailSenderUtil, NotificationService notificationService) {
         this.orderRepository = orderRepository;
         this.orderDetailRepository = orderDetailRepository;
         this.cartRepository = cartRepository;
         this.bookRepository = bookRepository;
         this.securityUtil = securityUtil;
         this.emailSenderUtil = emailSenderUtil;
+        this.notificationService = notificationService;
     }
 
     public OrderDTO createOrder(CreateOrderRequest request) {
@@ -108,6 +111,13 @@ public class OrderService {
 
         order.setStatus(newStatus);
         Order updatedOrder = orderRepository.save(order);
+
+        // TẠO THÔNG BÁO CHO NGƯỜI DÙNG
+        String title = "Đơn hàng #" + order.getId() + " đã được cập nhật";
+        String content = "Đơn hàng của bạn đã được chuyển sang trạng thái: " + newStatus;
+        // 'null' nghĩa là sender là hệ thống
+        notificationService.createNotification(null, order.getAccount(), title, content);
+
         return toDto(updatedOrder);
     }
 
