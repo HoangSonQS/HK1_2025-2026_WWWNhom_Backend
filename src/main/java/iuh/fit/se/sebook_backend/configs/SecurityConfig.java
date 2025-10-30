@@ -66,6 +66,8 @@ public class SecurityConfig {
 
                         .requestMatchers("/api/notifications/**").authenticated()
 
+                        .requestMatchers("/api/admin/**").hasAuthority("SCOPE_ADMIN")
+
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(customerJwtDecoder)));
