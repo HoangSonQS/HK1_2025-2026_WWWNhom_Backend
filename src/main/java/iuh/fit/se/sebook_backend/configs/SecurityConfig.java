@@ -56,6 +56,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/suppliers/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_WAREHOUSE_STAFF")
                         .requestMatchers("/api/import-stocks/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_WAREHOUSE_STAFF")
 
+                        .requestMatchers("/api/promotions/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF")
+                        .requestMatchers("/api/promotion-logs/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF")
+
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(customerJwtDecoder)));

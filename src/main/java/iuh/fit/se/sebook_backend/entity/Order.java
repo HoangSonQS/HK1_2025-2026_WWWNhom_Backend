@@ -36,6 +36,10 @@ public class Order {
     @Column(length = 50, nullable = false)
     private String status; // Ví dụ: PENDING, PROCESSING, COMPLETED, CANCELLED
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "promotion_id")
+    private Promotion appliedPromotion;
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<OrderDetail> orderDetails;
 }
