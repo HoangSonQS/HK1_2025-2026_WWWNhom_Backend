@@ -6,6 +6,7 @@ import iuh.fit.se.sebook_backend.repository.SupplierRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -21,6 +22,10 @@ public class SupplierService {
     }
 
     public SupplierDTO createSupplier(SupplierDTO dto) {
+        Optional<Supplier> existingSupplier = supplierRepository.findByNameIgnoreCase(dto.getName());
+        if (existingSupplier.isPresent()) {
+            throw new IllegalArgumentException("Nhà cung cấp với tên '" + dto.getName() + "' đã tồn tại.");
+        }
         Supplier supplier = new Supplier();
         supplier.setName(dto.getName());
         supplier.setEmail(dto.getEmail());
@@ -34,6 +39,13 @@ public class SupplierService {
     public SupplierDTO updateSupplier(Long id, SupplierDTO dto) {
         Supplier supplier = supplierRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Supplier not found"));
+
+        if (!supplier.getName().equalsIgnoreCase(dto.getName())) {
+            Optional<Supplier> existingSupplier = supplierRepository.findByNameIgnoreCase(dto.getName());
+            if (existingSupplier.isPresent()) {
+                throw new IllegalArgumentException("Tên nhà cung cấp '" + dto.getName() + "' đã được sử dụng.");
+            }
+        }
 
         supplier.setName(dto.getName());
         supplier.setEmail(dto.getEmail());
