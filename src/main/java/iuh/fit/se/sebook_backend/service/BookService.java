@@ -22,6 +22,12 @@ public class BookService {
     @Autowired
     private CategoryRepository categoryRepository;
 
+    public BookDTO getBookById(Long id) {
+        Book book = bookRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Book not found with id: " + id));
+        return toDto(book);
+    }
+
     public BookDTO createBook(BookDTO bookDTO, String imageUrl) {
         Book book = new Book();
         book.setTitle(bookDTO.getTitle());
