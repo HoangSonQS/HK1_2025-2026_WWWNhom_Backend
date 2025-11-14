@@ -20,11 +20,29 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
     }
 
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGlobalException(Exception ex, WebRequest request) {
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<ErrorResponse> handleRuntimeException(RuntimeException ex, WebRequest request) {
+        // Log chi tiết lỗi
+        System.err.println("RuntimeException: " + ex.getMessage());
+        ex.printStackTrace();
+        
         ErrorResponse errorResponse = new ErrorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                ex.getMessage(),
+                ex.getMessage() != null ? ex.getMessage() : "Internal server error",
+                System.currentTimeMillis()
+        );
+        return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleGlobalException(Exception ex, WebRequest request) {
+        // Log chi tiết lỗi
+        System.err.println("Exception: " + ex.getMessage());
+        ex.printStackTrace();
+        
+        ErrorResponse errorResponse = new ErrorResponse(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                ex.getMessage() != null ? ex.getMessage() : "Internal server error",
                 System.currentTimeMillis()
         );
         return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);

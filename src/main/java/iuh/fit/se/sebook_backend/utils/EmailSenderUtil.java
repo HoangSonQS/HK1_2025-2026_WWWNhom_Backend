@@ -16,15 +16,17 @@ public class EmailSenderUtil {
             MimeMessage message = mailSender.createMimeMessage();
 
             MimeMessageHelper helper = new MimeMessageHelper(message,true,"UTF-8");
-            helper.setFrom("sebook4y@gmail.com");
+            helper.setFrom("sebook4u@gmail.com");
             helper.setTo(toEmail);
             helper.setText(body,true);
             helper.setSubject(subject);
 
             mailSender.send(message);
-            System.out.printf("Mail Sent Successfully!");
+            System.out.println("Mail Sent Successfully to: " + toEmail);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            System.err.println("Error sending email to " + toEmail + ": " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Failed to send email: " + e.getMessage(), e);
         }
     }
 }
