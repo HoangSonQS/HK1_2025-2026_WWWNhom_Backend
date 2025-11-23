@@ -90,6 +90,7 @@ public class SecurityConfig {
 
                         .requestMatchers("/api/notifications/**").authenticated()
 
+                        .requestMatchers(HttpMethod.PUT, "/api/admin/accounts/me").authenticated() // Cho phép user tự cập nhật thông tin của mình
                         .requestMatchers("/api/admin/**").hasAuthority("SCOPE_ADMIN")
 
                         .anyRequest().authenticated()
