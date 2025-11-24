@@ -73,6 +73,12 @@ public class BookController {
         return ResponseEntity.ok(bookService.filterBooksByCategory(categoryId));
     }
 
+    @GetMapping("/category/{categoryId}")
+    public ResponseEntity<List<BookDTO>> getBooksByCategory(@PathVariable Long categoryId,
+                                                             @RequestParam(defaultValue = "10") int limit) {
+        return ResponseEntity.ok(bookService.getBooksByCategoryWithLimit(categoryId, limit));
+    }
+
     @GetMapping
     public ResponseEntity<List<BookDTO>> getAllBooks() {
         return ResponseEntity.ok(bookService.getAllBooks());

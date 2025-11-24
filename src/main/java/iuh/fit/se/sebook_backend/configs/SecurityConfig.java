@@ -52,6 +52,10 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
+                        // Cho phép truy cập static files (ảnh) mà không cần authentication - ĐẶT ĐẦU TIÊN
+                        .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
+                        .requestMatchers("/uploads/**").permitAll()
+
                         .requestMatchers(HttpMethod.POST, "/api/auth/token").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
@@ -90,7 +94,9 @@ public class SecurityConfig {
 
                         .requestMatchers("/api/notifications/**").authenticated()
 
+                        .requestMatchers(HttpMethod.GET, "/api/admin/accounts/me").authenticated() // Cho phép user xem thông tin của mình
                         .requestMatchers(HttpMethod.PUT, "/api/admin/accounts/me").authenticated() // Cho phép user tự cập nhật thông tin của mình
+                        .requestMatchers("/api/user/addresses/**").authenticated() // Cho phép user quản lý địa chỉ
                         .requestMatchers("/api/admin/**").hasAuthority("SCOPE_ADMIN")
 
                         .anyRequest().authenticated()

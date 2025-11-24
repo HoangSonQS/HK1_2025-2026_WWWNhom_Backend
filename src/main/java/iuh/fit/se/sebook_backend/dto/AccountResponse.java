@@ -4,6 +4,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.List;
 import java.util.Set;
 
 @Getter
@@ -14,5 +15,9 @@ public class AccountResponse {
     private String username;
     private String email;
     private boolean isActive;
+    private String firstName;
+    private String lastName;
+    private String phoneNumber;
     private Set<String> roles;
+    private List<AddressDTO> addresses;
 }

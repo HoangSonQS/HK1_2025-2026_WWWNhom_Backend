@@ -14,4 +14,5 @@ public class BookDTO {
     private int quantity;
     private String imageUrl;
     private Set<Long> categoryIds;
+    private Set<String> categoryNames;
 }

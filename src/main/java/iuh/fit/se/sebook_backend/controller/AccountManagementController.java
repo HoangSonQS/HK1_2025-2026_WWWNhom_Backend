@@ -37,6 +37,14 @@ public class AccountManagementController {
     }
 
     /**
+     * API lấy thông tin tài khoản của chính người dùng đang đăng nhập
+     */
+    @GetMapping("/me")
+    public ResponseEntity<AccountResponse> getMyAccount() {
+        return ResponseEntity.ok(accountManagementService.getMyAccount());
+    }
+
+    /**
      * API cập nhật thông tin tài khoản của chính người dùng đang đăng nhập
      */
     @PutMapping("/me")

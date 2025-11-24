@@ -90,6 +90,14 @@ public class BookService {
                 .stream().map(this::toDto).collect(Collectors.toList());
     }
 
+    public List<BookDTO> getBooksByCategoryWithLimit(Long categoryId, int limit) {
+        return bookRepository.findByCategories_Id(categoryId)
+                .stream()
+                .limit(limit)
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
+
     private BookDTO toDto(Book book) {
         BookDTO dto = new BookDTO();
         dto.setId(book.getId());
@@ -99,6 +107,7 @@ public class BookService {
         dto.setQuantity(book.getQuantity());
         dto.setImageUrl(book.getImageUrl());
         dto.setCategoryIds(book.getCategories().stream().map(Category::getId).collect(Collectors.toSet()));
+        dto.setCategoryNames(book.getCategories().stream().map(Category::getName).collect(Collectors.toSet()));
         return dto;
     }
 }
