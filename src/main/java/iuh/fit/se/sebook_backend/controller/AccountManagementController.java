@@ -51,4 +51,13 @@ public class AccountManagementController {
     public ResponseEntity<AccountResponse> updateMyAccount(@RequestBody UpdateAccountRequest request) {
         return ResponseEntity.ok(accountManagementService.updateMyAccount(request));
     }
+
+    /**
+     * API cập nhật thông tin tài khoản khác (chỉ dành cho admin)
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<AccountResponse> updateAccount(@PathVariable Long id,
+                                                       @RequestBody UpdateAccountRequest request) {
+        return ResponseEntity.ok(accountManagementService.updateAccount(id, request));
+    }
 }

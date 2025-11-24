@@ -58,9 +58,28 @@ public class AccountManagementService {
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new IllegalArgumentException("Account not found"));
 
-        account.setActive(request.isActive());
-        Account savedAccount = accountRepository.save(account);
-        return toDto(savedAccount);
+        boolean oldStatus = account.isActive();
+        boolean newStatus = request.getIsActive() != null ? request.getIsActive() : false;
+        
+        System.out.println("🔄 Updating account status - ID: " + accountId + 
+                          ", Old: " + oldStatus + ", New: " + newStatus);
+        
+        account.setActive(newStatus);
+        Account savedAccount = accountRepository.saveAndFlush(account);
+        
+        // Reload from database to verify
+        Account verifiedAccount = accountRepository.findById(accountId)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found after save"));
+        
+        System.out.println("✅ Saved account status - ID: " + accountId + 
+                          ", Status in DB: " + verifiedAccount.isActive());
+        
+        if (verifiedAccount.isActive() != newStatus) {
+            throw new IllegalStateException("Failed to update account status. Expected: " + 
+                                           newStatus + ", but got: " + verifiedAccount.isActive());
+        }
+        
+        return toDto(verifiedAccount);
     }
 
     /**
@@ -69,7 +88,33 @@ public class AccountManagementService {
     @Transactional
     public AccountResponse updateMyAccount(UpdateAccountRequest request) {
         Account account = securityUtil.getLoggedInAccount();
+        return updateAccountInternal(account, request);
+    }
 
+    /**
+     * Cập nhật thông tin tài khoản khác (chỉ dành cho admin)
+     */
+    @Transactional
+    public AccountResponse updateAccount(Long accountId, UpdateAccountRequest request) {
+        Account account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+        
+        // Kiểm tra quyền admin
+        Account currentAccount = securityUtil.getLoggedInAccount();
+        boolean isAdmin = currentAccount.getRoles().stream()
+                .anyMatch(role -> role.getName().equalsIgnoreCase("admin"));
+        
+        if (!isAdmin) {
+            throw new IllegalArgumentException("Chỉ có admin mới có quyền cập nhật tài khoản khác");
+        }
+        
+        return updateAccountInternal(account, request);
+    }
+
+    /**
+     * Logic chung để cập nhật thông tin tài khoản
+     */
+    private AccountResponse updateAccountInternal(Account account, UpdateAccountRequest request) {
         // Kiểm tra username mới có bị trùng không (nếu thay đổi)
         if (request.getUsername() != null && !request.getUsername().equals(account.getUsername())) {
             if (accountRepository.findByUsername(request.getUsername()).isPresent()) {

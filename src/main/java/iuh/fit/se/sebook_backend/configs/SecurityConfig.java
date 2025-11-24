@@ -14,6 +14,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import iuh.fit.se.sebook_backend.configs.CustomerJwtDecoder;
+import iuh.fit.se.sebook_backend.configs.JwtAuthenticationConverter;
 
 import java.util.Arrays;
 
@@ -101,7 +102,12 @@ public class SecurityConfig {
 
                         .anyRequest().authenticated()
                 )
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(customerJwtDecoder)));
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt
+                                .decoder(customerJwtDecoder)
+                                .jwtAuthenticationConverter(new JwtAuthenticationConverter())
+                        )
+                );
         return http.build();
     }
 }

@@ -26,6 +26,28 @@ public class CategoryService {
         return categoryRepository.findAll().stream().map(this::toDto).collect(Collectors.toList());
     }
 
+    public CategoryDTO getCategoryById(Long id) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Category not found with id: " + id));
+        return toDto(category);
+    }
+
+    public CategoryDTO updateCategory(Long id, CategoryDTO categoryDTO) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Category not found with id: " + id));
+
+        category.setName(categoryDTO.getName());
+        Category updatedCategory = categoryRepository.save(category);
+        return toDto(updatedCategory);
+    }
+
+    public void deleteCategory(Long id) {
+        if (!categoryRepository.existsById(id)) {
+            throw new IllegalArgumentException("Category not found with id: " + id);
+        }
+        categoryRepository.deleteById(id);
+    }
+
     private CategoryDTO toDto(Category category) {
         CategoryDTO dto = new CategoryDTO();
         dto.setId(category.getId());
