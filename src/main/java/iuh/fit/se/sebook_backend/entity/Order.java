@@ -12,7 +12,7 @@ import java.util.List;
 @Setter
 public class Order {
 
-    public static final String PENDING = "PENDING"; // Chờ xử lý
+    public static final String PENDING = "PENDING"; // Chờ xác nhận
     public static final String PROCESSING = "PROCESSING"; // Đang xử lý (đã xác nhận)
     public static final String DELIVERING = "DELIVERING"; // Đang giao
     public static final String COMPLETED = "COMPLETED"; // Đã giao thành công
@@ -42,6 +42,13 @@ public class Order {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "promotion_id")
     private Promotion appliedPromotion;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "address_id")
+    private Address deliveryAddress;
+
+    @Column(name = "payment_method", length = 50)
+    private String paymentMethod; // CASH, VNPAY, etc.
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<OrderDetail> orderDetails;

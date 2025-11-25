@@ -6,4 +6,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class CreateOrderRequest {
+    private Long addressId;
+    private String promotionCode;
+    private String paymentMethod; // CASH, VNPAY, etc.
 }
