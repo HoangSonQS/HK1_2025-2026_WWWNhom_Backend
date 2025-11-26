@@ -10,6 +10,7 @@ import iuh.fit.se.sebook_backend.utils.SecurityUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -98,6 +99,19 @@ public class PromotionService {
     public PromotionResponseDTO getPromotionById(Long id) {
         Promotion promotion = promotionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Promotion not found"));
+        return toDto(promotion);
+    }
+
+    @Transactional(readOnly = true)
+    public PromotionResponseDTO validatePromotionCode(String code) {
+        Promotion promotion = promotionRepository
+                .findByCodeAndIsActiveTrueAndEndDateAfter(code.trim(), LocalDate.now())
+                .orElseThrow(() -> new IllegalArgumentException("Invalid or expired promotion code"));
+        
+        if (promotion.getQuantity() <= 0) {
+            throw new IllegalStateException("Promotion code has been fully used");
+        }
+        
         return toDto(promotion);
     }
 

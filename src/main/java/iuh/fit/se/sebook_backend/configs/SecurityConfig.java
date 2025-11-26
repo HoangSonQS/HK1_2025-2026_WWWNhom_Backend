@@ -81,12 +81,15 @@ public class SecurityConfig {
                         .requestMatchers("/api/orders/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/orders").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/orders/my-orders").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/api/orders/{orderId}/cancel").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/api/orders/{orderId}/confirm-received").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/api/orders/{orderId}/status").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF")
                         .requestMatchers(HttpMethod.GET, "/api/orders/all").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF")
 
                         .requestMatchers("/api/suppliers/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_WAREHOUSE_STAFF")
                         .requestMatchers("/api/import-stocks/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_WAREHOUSE_STAFF")
 
+                        .requestMatchers(HttpMethod.GET, "/api/promotions/validate").authenticated()
                         .requestMatchers("/api/promotions/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF")
                         .requestMatchers("/api/promotion-logs/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF")
 
