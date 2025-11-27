@@ -13,4 +13,5 @@ public class PromotionRequestDTO {
     private LocalDate startDate;
     private LocalDate endDate;
     private int quantity;
+    private Double priceOrderActive; // Giá trị đơn hàng tối thiểu để áp dụng mã
 }

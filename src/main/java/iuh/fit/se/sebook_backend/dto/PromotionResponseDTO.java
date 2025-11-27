@@ -16,6 +16,7 @@ public class PromotionResponseDTO {
     private LocalDate startDate;
     private LocalDate endDate;
     private int quantity;
+    private Double priceOrderActive; // Giá trị đơn hàng tối thiểu để áp dụng mã
     private boolean isActive;
     private String createdByName;
     private String approvedByName;

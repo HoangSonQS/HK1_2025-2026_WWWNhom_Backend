@@ -34,6 +34,9 @@ public class Promotion {
     @Column(nullable = false)
     private int quantity;
 
+    @Column(nullable = true)
+    private Double priceOrderActive; // giá để có thể áp dụng mã
+
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true; // Dùng cho xóa mềm
 

@@ -41,6 +41,7 @@ public class PromotionService {
         promotion.setStartDate(request.getStartDate());
         promotion.setEndDate(request.getEndDate());
         promotion.setQuantity(request.getQuantity());
+        promotion.setPriceOrderActive(request.getPriceOrderActive());
         promotion.setActive(true); // Mặc định là active (sau này có thể đổi thành false để chờ duyệt)
         promotion.setCreatedBy(currentUser);
         // approvedBy sẽ là null cho đến khi có người duyệt
@@ -124,6 +125,7 @@ public class PromotionService {
                 .startDate(promotion.getStartDate())
                 .endDate(promotion.getEndDate())
                 .quantity(promotion.getQuantity())
+                .priceOrderActive(promotion.getPriceOrderActive())
                 .isActive(promotion.isActive())
                 .createdByName(promotion.getCreatedBy() != null ? promotion.getCreatedBy().getUsername() : null)
                 .approvedByName(promotion.getApprovedBy() != null ? promotion.getApprovedBy().getUsername() : null)
