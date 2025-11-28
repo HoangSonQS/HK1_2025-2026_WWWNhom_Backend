@@ -92,7 +92,7 @@ public class PromotionService {
     }
 
     @Transactional
-    public PromotionResponseDTO deactivatePromotion(Long id) { // Xóa mềm
+    public PromotionResponseDTO deactivatePromotion(Long id) { // Từ chối
         Promotion promotion = promotionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Promotion not found"));
 
@@ -100,8 +100,44 @@ public class PromotionService {
         promotion.setStatus("REJECTED");
         Promotion savedPromotion = promotionRepository.save(promotion);
 
-        // Ghi log hành động xóa mềm (hoặc từ chối)
-        promotionLogService.createLog(savedPromotion, PromotionLog.DEACTIVATE);
+        // Ghi log hành động từ chối
+        promotionLogService.createLog(savedPromotion, PromotionLog.REJECT);
+
+        return toDto(savedPromotion);
+    }
+
+    @Transactional
+    public PromotionResponseDTO pausePromotion(Long id) {
+        Promotion promotion = promotionRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Promotion not found"));
+
+        Account currentUser = securityUtil.getLoggedInAccount();
+        promotion.setActive(false);
+        promotion.setStatus("PAUSED");
+        Promotion savedPromotion = promotionRepository.save(promotion);
+
+        promotionLogService.createLog(savedPromotion, PromotionLog.PAUSE);
+        notifyPromotionPaused(savedPromotion, currentUser);
+
+        return toDto(savedPromotion);
+    }
+
+    @Transactional
+    public PromotionResponseDTO resumePromotion(Long id) {
+        Promotion promotion = promotionRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Promotion not found"));
+
+        if (!"PAUSED".equalsIgnoreCase(promotion.getStatus())) {
+            throw new IllegalStateException("Only paused promotions can be re-activated");
+        }
+
+        Account currentUser = securityUtil.getLoggedInAccount();
+        promotion.setActive(true);
+        promotion.setStatus("ACTIVE");
+        Promotion savedPromotion = promotionRepository.save(promotion);
+
+        promotionLogService.createLog(savedPromotion, PromotionLog.RESUME);
+        notifyPromotionResumed(savedPromotion, currentUser);
 
         return toDto(savedPromotion);
     }
@@ -176,6 +212,42 @@ public class PromotionService {
         }
 
         String content = contentBuilder.toString();
+
+        activeAccounts.stream()
+                .filter(account -> account.getRoles() != null && account.getRoles().stream()
+                        .anyMatch(role -> "CUSTOMER".equalsIgnoreCase(role.getName())))
+                .forEach(account ->
+                        notificationService.createNotification(sender, account, title, content)
+                );
+    }
+
+    private void notifyPromotionPaused(Promotion promotion, Account sender) {
+        List<Account> activeAccounts = accountRepository.findByIsActiveTrue();
+        if (activeAccounts == null || activeAccounts.isEmpty()) {
+            return;
+        }
+
+        String title = "Khuyến mãi tạm ngưng: " + promotion.getName();
+        String content = String.format("Khuyến mãi %s (mã %s) hiện đang tạm ngưng hoạt động. Vui lòng quay lại sau khi có thông báo mới.",
+                promotion.getName(), promotion.getCode());
+
+        activeAccounts.stream()
+                .filter(account -> account.getRoles() != null && account.getRoles().stream()
+                        .anyMatch(role -> "CUSTOMER".equalsIgnoreCase(role.getName())))
+                .forEach(account ->
+                        notificationService.createNotification(sender, account, title, content)
+                );
+    }
+
+    private void notifyPromotionResumed(Promotion promotion, Account sender) {
+        List<Account> activeAccounts = accountRepository.findByIsActiveTrue();
+        if (activeAccounts == null || activeAccounts.isEmpty()) {
+            return;
+        }
+
+        String title = "Khuyến mãi hoạt động lại: " + promotion.getName();
+        String content = String.format("Khuyến mãi %s (mã %s) đã hoạt động trở lại. Đừng bỏ lỡ!",
+                promotion.getName(), promotion.getCode());
 
         activeAccounts.stream()
                 .filter(account -> account.getRoles() != null && account.getRoles().stream()

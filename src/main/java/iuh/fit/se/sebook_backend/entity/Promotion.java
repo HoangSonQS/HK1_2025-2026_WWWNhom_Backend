@@ -41,7 +41,7 @@ public class Promotion {
     private boolean isActive = true; // Dùng cho xóa mềm
 
     @Column(name ="status" ,length = 20, nullable = false)
-    private String status = "PENDING"; // PENDING, ACTIVE, REJECTED
+    private String status = "PENDING"; // PENDING, ACTIVE, REJECTED, PAUSED
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_account_id")

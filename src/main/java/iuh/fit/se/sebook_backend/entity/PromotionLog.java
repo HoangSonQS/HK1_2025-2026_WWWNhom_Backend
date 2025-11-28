@@ -14,7 +14,9 @@ public class PromotionLog {
     public static final String CREATE = "CREATE";
     public static final String APPROVE = "APPROVE";
     public static final String REJECT = "REJECT";
-    public static final String DEACTIVATE = "DEACTIVATE"; // Xóa mềm
+    public static final String DEACTIVATE = "DEACTIVATE"; // Xóa mềm (legacy)
+    public static final String PAUSE = "PAUSE";
+    public static final String RESUME = "RESUME";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
