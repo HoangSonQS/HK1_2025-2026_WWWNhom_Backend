@@ -90,4 +90,9 @@ public class BookController {
         return ResponseEntity.ok(book);
     }
 
+    @GetMapping("/category/{categoryId}")
+    public ResponseEntity<List<BookDTO>> getBooksByCategory(@PathVariable Long categoryId) {
+        return ResponseEntity.ok(bookService.filterBooksByCategory(categoryId));
+    }
+
 }

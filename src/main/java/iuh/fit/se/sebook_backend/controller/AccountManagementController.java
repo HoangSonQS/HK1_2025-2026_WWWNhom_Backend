@@ -2,6 +2,8 @@ package iuh.fit.se.sebook_backend.controller;
 
 import iuh.fit.se.sebook_backend.dto.AccountResponse;
 import iuh.fit.se.sebook_backend.dto.AccountStatusUpdateRequest;
+import iuh.fit.se.sebook_backend.dto.CreateStaffAccountRequest;
+import iuh.fit.se.sebook_backend.dto.UpdateAccountRolesRequest;
 import iuh.fit.se.sebook_backend.dto.UpdateAccountRequest;
 import iuh.fit.se.sebook_backend.service.AccountManagementService;
 import org.springframework.http.ResponseEntity;
@@ -37,6 +39,20 @@ public class AccountManagementController {
     }
 
     /**
+     * API tạo tài khoản nhân viên mới
+     */
+    @PostMapping
+    public ResponseEntity<AccountResponse> createStaffAccount(@RequestBody CreateStaffAccountRequest request) {
+        return ResponseEntity.ok(accountManagementService.createStaffAccount(request));
+    }
+
+    /**
+     * API cập nhật roles của tài khoản
+     */
+    @PutMapping("/{id}/roles")
+    public ResponseEntity<AccountResponse> updateAccountRoles(@PathVariable Long id,
+                                                              @RequestBody UpdateAccountRolesRequest request) {
+        return ResponseEntity.ok(accountManagementService.updateAccountRoles(id, request));
      * API lấy thông tin tài khoản của chính người dùng đang đăng nhập
      */
     @GetMapping("/me")
