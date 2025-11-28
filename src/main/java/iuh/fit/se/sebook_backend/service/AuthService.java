@@ -153,7 +153,7 @@ public class AuthService {
     private String buildScope(Account account) {
         StringJoiner joiner = new StringJoiner(" ");
         if (!account.getRoles().isEmpty()) {
-            account.getRoles().forEach(role -> joiner.add(role.getName()));
+            account.getRoles().forEach(role -> joiner.add(role.getName().toUpperCase()));
         }
         return joiner.toString();
     }

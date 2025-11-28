@@ -55,6 +55,18 @@ public class NotificationService {
         return toDto(savedNotification);
     }
 
+    /**
+     * Đếm số thông báo chưa đọc của người dùng hiện tại
+     */
+    @Transactional(readOnly = true)
+    public Long getUnreadCount() {
+        Account currentUser = securityUtil.getLoggedInAccount();
+        List<Notification> notifications = notificationRepository.findByReceiverIdOrderByCreatedAtDesc(currentUser.getId());
+        return notifications.stream()
+                .filter(notification -> !notification.isRead())
+                .count();
+    }
+
     private NotificationResponseDTO toDto(Notification notification) {
         String senderName = "Hệ thống"; // Mặc định
         if (notification.getSender() != null) {

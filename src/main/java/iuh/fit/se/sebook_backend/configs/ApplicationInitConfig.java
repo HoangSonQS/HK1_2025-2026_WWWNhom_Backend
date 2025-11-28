@@ -9,6 +9,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.Set;
 
@@ -51,19 +52,29 @@ public class ApplicationInitConfig {
         return roleRepository.findByName(name).orElseGet(() -> {
             Role newRole = new Role();
             newRole.setName(name);
-            return roleRepository.save(newRole);
+            try {
+                return roleRepository.save(newRole);
+            } catch (DataIntegrityViolationException ex) {
+                // If a duplicate key occurs (concurrent insertion or DB sequence mismatch), try to reload by name
+                return roleRepository.findByName(name).orElseThrow(() -> ex);
+            }
         });
     }
 
     private void createAccountIfNotFound(String username, String email, String password, Set<Role> roles) {
-        if (!accountRepository.findByUsername(username).isPresent()) {
+        if (accountRepository.findByUsername(username).isEmpty()) {
             Account account = new Account();
             account.setUsername(username);
             account.setEmail(email);
             account.setPassword(passwordEncoder.encode(password));
             account.setRoles(roles);
             account.setActive(true);
-            accountRepository.save(account);
+            try {
+                accountRepository.save(account);
+            } catch (DataIntegrityViolationException ex) {
+                // ignore if another process created the account concurrently
+                // optionally log here if needed
+            }
         }
     }
 }
