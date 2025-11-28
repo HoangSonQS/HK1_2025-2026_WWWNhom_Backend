@@ -28,4 +28,16 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      * Đếm đơn hàng mới trong một khoảng thời gian
      */
     long countByOrderDateAfter(LocalDateTime after);
+
+    /**
+     * Tính tổng doanh thu trong một khoảng thời gian
+     */
+    @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.status = :status AND o.orderDate >= :startDate AND o.orderDate < :endDate")
+    double sumTotalAmountByStatusAndDateRange(String status, LocalDateTime startDate, LocalDateTime endDate);
+
+    /**
+     * Đếm số đơn hàng trong một khoảng thời gian
+     */
+    @Query("SELECT COUNT(o) FROM Order o WHERE o.status = :status AND o.orderDate >= :startDate AND o.orderDate < :endDate")
+    long countByStatusAndDateRange(String status, LocalDateTime startDate, LocalDateTime endDate);
 }
