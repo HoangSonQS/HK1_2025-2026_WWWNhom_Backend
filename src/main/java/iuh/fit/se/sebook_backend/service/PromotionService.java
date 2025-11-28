@@ -5,13 +5,17 @@ import iuh.fit.se.sebook_backend.dto.PromotionResponseDTO;
 import iuh.fit.se.sebook_backend.entity.Account;
 import iuh.fit.se.sebook_backend.entity.Promotion;
 import iuh.fit.se.sebook_backend.entity.PromotionLog;
+import iuh.fit.se.sebook_backend.repository.AccountRepository;
 import iuh.fit.se.sebook_backend.repository.PromotionRepository;
 import iuh.fit.se.sebook_backend.utils.SecurityUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.text.NumberFormat;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Service
@@ -19,11 +23,20 @@ public class PromotionService {
     private final PromotionRepository promotionRepository;
     private final PromotionLogService promotionLogService;
     private final SecurityUtil securityUtil;
+    private final NotificationService notificationService;
+    private final AccountRepository accountRepository;
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-    public PromotionService(PromotionRepository promotionRepository, PromotionLogService promotionLogService, SecurityUtil securityUtil) {
+    public PromotionService(PromotionRepository promotionRepository,
+                            PromotionLogService promotionLogService,
+                            SecurityUtil securityUtil,
+                            NotificationService notificationService,
+                            AccountRepository accountRepository) {
         this.promotionRepository = promotionRepository;
         this.promotionLogService = promotionLogService;
         this.securityUtil = securityUtil;
+        this.notificationService = notificationService;
+        this.accountRepository = accountRepository;
     }
 
     @Transactional
@@ -42,7 +55,8 @@ public class PromotionService {
         promotion.setEndDate(request.getEndDate());
         promotion.setQuantity(request.getQuantity());
         promotion.setPriceOrderActive(request.getPriceOrderActive());
-        promotion.setActive(true); // Mặc định là active (sau này có thể đổi thành false để chờ duyệt)
+        promotion.setActive(false); // Mặc định chờ duyệt
+        promotion.setStatus("PENDING");
         promotion.setCreatedBy(currentUser);
         // approvedBy sẽ là null cho đến khi có người duyệt
 
@@ -60,13 +74,19 @@ public class PromotionService {
                 .orElseThrow(() -> new IllegalArgumentException("Promotion not found"));
 
         Account currentUser = securityUtil.getLoggedInAccount();
+        boolean wasPending = promotion.getApprovedBy() == null;
         promotion.setApprovedBy(currentUser);
-        // Có thể thêm logic: promotion.setActive(true); nếu mặc định tạo là false
+        promotion.setActive(true);
+        promotion.setStatus("ACTIVE");
 
         Promotion savedPromotion = promotionRepository.save(promotion);
 
         // Ghi log hành động duyệt
         promotionLogService.createLog(savedPromotion, PromotionLog.APPROVE);
+
+        if (wasPending) {
+            notifyActiveCustomers(savedPromotion, currentUser);
+        }
 
         return toDto(savedPromotion);
     }
@@ -77,6 +97,7 @@ public class PromotionService {
                 .orElseThrow(() -> new IllegalArgumentException("Promotion not found"));
 
         promotion.setActive(false);
+        promotion.setStatus("REJECTED");
         Promotion savedPromotion = promotionRepository.save(promotion);
 
         // Ghi log hành động xóa mềm (hoặc từ chối)
@@ -127,8 +148,55 @@ public class PromotionService {
                 .quantity(promotion.getQuantity())
                 .priceOrderActive(promotion.getPriceOrderActive())
                 .isActive(promotion.isActive())
+                .status(promotion.getStatus())
                 .createdByName(promotion.getCreatedBy() != null ? promotion.getCreatedBy().getUsername() : null)
                 .approvedByName(promotion.getApprovedBy() != null ? promotion.getApprovedBy().getUsername() : null)
                 .build();
+    }
+
+    private void notifyActiveCustomers(Promotion promotion, Account sender) {
+        List<Account> activeAccounts = accountRepository.findByIsActiveTrue();
+        if (activeAccounts == null || activeAccounts.isEmpty()) {
+            return;
+        }
+
+        String title = "Khuyến mãi mới: " + promotion.getName();
+        StringBuilder contentBuilder = new StringBuilder();
+        contentBuilder.append("Nhận ")
+                .append(promotion.getDiscountPercent())
+                .append("% giảm giá với mã ")
+                .append(promotion.getCode())
+                .append(". Áp dụng từ ")
+                .append(formatDate(promotion.getStartDate()))
+                .append(" đến ")
+                .append(formatDate(promotion.getEndDate()));
+
+        if (promotion.getPriceOrderActive() != null && promotion.getPriceOrderActive() > 0) {
+            contentBuilder.append(". Đơn tối thiểu: ").append(formatCurrency(promotion.getPriceOrderActive()));
+        }
+
+        String content = contentBuilder.toString();
+
+        activeAccounts.stream()
+                .filter(account -> account.getRoles() != null && account.getRoles().stream()
+                        .anyMatch(role -> "CUSTOMER".equalsIgnoreCase(role.getName())))
+                .forEach(account ->
+                        notificationService.createNotification(sender, account, title, content)
+                );
+    }
+
+    private String formatCurrency(Double value) {
+        if (value == null) {
+            return "";
+        }
+        NumberFormat format = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
+        return format.format(value);
+    }
+
+    private String formatDate(LocalDate date) {
+        if (date == null) {
+            return "";
+        }
+        return date.format(DATE_FORMATTER);
     }
 }

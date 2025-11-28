@@ -40,6 +40,9 @@ public class Promotion {
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true; // Dùng cho xóa mềm
 
+    @Column(name ="status" ,length = 20, nullable = false)
+    private String status = "PENDING"; // PENDING, ACTIVE, REJECTED
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_account_id")
     private Account createdBy; // Nhân viên (staff) tạo
