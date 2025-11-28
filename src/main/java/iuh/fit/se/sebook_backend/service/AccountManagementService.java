@@ -12,6 +12,7 @@ import iuh.fit.se.sebook_backend.entity.Address;
 import iuh.fit.se.sebook_backend.entity.Role;
 import iuh.fit.se.sebook_backend.repository.AccountRepository;
 import iuh.fit.se.sebook_backend.repository.RoleRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import iuh.fit.se.sebook_backend.repository.AddressRepository;
 import iuh.fit.se.sebook_backend.utils.SecurityUtil;
@@ -26,23 +27,21 @@ import java.util.stream.Collectors;
 @Service
 @Transactional(readOnly = true)
 public class AccountManagementService {
-
     private final AccountRepository accountRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final AddressRepository addressRepository;
     private final SecurityUtil securityUtil;
 
-    public AccountManagementService(AccountRepository accountRepository, 
-                                   RoleRepository roleRepository,
-                                   PasswordEncoder passwordEncoder) {
+    @Autowired
+    public AccountManagementService(AccountRepository accountRepository,
+                                    RoleRepository roleRepository,
+                                    PasswordEncoder passwordEncoder,
+                                    AddressRepository addressRepository,
+                                    SecurityUtil securityUtil) {
         this.accountRepository = accountRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
-
-
-    public AccountManagementService(AccountRepository accountRepository, AddressRepository addressRepository, SecurityUtil securityUtil) {
-        this.accountRepository = accountRepository;
         this.addressRepository = addressRepository;
         this.securityUtil = securityUtil;
     }
@@ -215,8 +214,7 @@ public class AccountManagementService {
 
         Account savedAccount = accountRepository.save(account);
         return toDto(savedAccount);
-     * Thêm địa chỉ mới cho tài khoản đang đăng nhập
-     */
+    }
     @Transactional
     public AddressDTO addAddress(AddressRequestDTO request) {
         Account account = securityUtil.getLoggedInAccount();
