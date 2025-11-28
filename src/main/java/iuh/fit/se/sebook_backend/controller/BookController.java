@@ -75,7 +75,10 @@ public class BookController {
 
     @GetMapping("/category/{categoryId}")
     public ResponseEntity<List<BookDTO>> getBooksByCategory(@PathVariable Long categoryId,
-                                                             @RequestParam(defaultValue = "10") int limit) {
+                                                            @RequestParam(required = false) Integer limit) {
+        if (limit == null) {
+            return ResponseEntity.ok(bookService.filterBooksByCategory(categoryId));
+        }
         return ResponseEntity.ok(bookService.getBooksByCategoryWithLimit(categoryId, limit));
     }
 
@@ -88,11 +91,6 @@ public class BookController {
     public ResponseEntity<BookDTO> getBookById(@PathVariable Long id) {
         BookDTO book = bookService.getBookById(id);
         return ResponseEntity.ok(book);
-    }
-
-    @GetMapping("/category/{categoryId}")
-    public ResponseEntity<List<BookDTO>> getBooksByCategory(@PathVariable Long categoryId) {
-        return ResponseEntity.ok(bookService.filterBooksByCategory(categoryId));
     }
 
 }

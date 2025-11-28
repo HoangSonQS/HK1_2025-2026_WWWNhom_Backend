@@ -53,8 +53,8 @@ public class AccountManagementController {
     public ResponseEntity<AccountResponse> updateAccountRoles(@PathVariable Long id,
                                                               @RequestBody UpdateAccountRolesRequest request) {
         return ResponseEntity.ok(accountManagementService.updateAccountRoles(id, request));
-     * API lấy thông tin tài khoản của chính người dùng đang đăng nhập
-     */
+    }
+
     @GetMapping("/me")
     public ResponseEntity<AccountResponse> getMyAccount() {
         return ResponseEntity.ok(accountManagementService.getMyAccount());
