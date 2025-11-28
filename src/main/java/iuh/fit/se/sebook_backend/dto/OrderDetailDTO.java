@@ -10,6 +10,7 @@ import lombok.Setter;
 public class OrderDetailDTO {
     private Long bookId;
     private String bookTitle;
+    private String bookImageUrl;
     private int quantity;
     private double priceAtPurchase;
 }

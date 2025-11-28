@@ -14,6 +14,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import iuh.fit.se.sebook_backend.configs.CustomerJwtDecoder;
+import iuh.fit.se.sebook_backend.configs.JwtAuthenticationConverter;
 
 import java.util.Arrays;
 
@@ -52,6 +53,10 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
+                        // Cho phép truy cập static files (ảnh) mà không cần authentication - ĐẶT ĐẦU TIÊN
+                        .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
+                        .requestMatchers("/uploads/**").permitAll()
+
                         .requestMatchers(HttpMethod.POST, "/api/auth/token").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
@@ -76,12 +81,15 @@ public class SecurityConfig {
                         .requestMatchers("/api/orders/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/orders").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/orders/my-orders").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/api/orders/{orderId}/cancel").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/api/orders/{orderId}/confirm-received").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/api/orders/{orderId}/status").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF")
                         .requestMatchers(HttpMethod.GET, "/api/orders/all").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF")
 
                         .requestMatchers("/api/suppliers/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_WAREHOUSE_STAFF")
                         .requestMatchers("/api/import-stocks/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_WAREHOUSE_STAFF")
 
+                        .requestMatchers(HttpMethod.GET, "/api/promotions/validate").authenticated()
                         .requestMatchers("/api/promotions/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF")
                         .requestMatchers("/api/promotion-logs/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF")
 
@@ -90,11 +98,19 @@ public class SecurityConfig {
 
                         .requestMatchers("/api/notifications/**").authenticated()
 
+                        .requestMatchers(HttpMethod.GET, "/api/admin/accounts/me").authenticated() // Cho phép user xem thông tin của mình
+                        .requestMatchers(HttpMethod.PUT, "/api/admin/accounts/me").authenticated() // Cho phép user tự cập nhật thông tin của mình
+                        .requestMatchers("/api/user/addresses/**").authenticated() // Cho phép user quản lý địa chỉ
                         .requestMatchers("/api/admin/**").hasAuthority("SCOPE_ADMIN")
 
                         .anyRequest().authenticated()
                 )
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(customerJwtDecoder)));
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt
+                                .decoder(customerJwtDecoder)
+                                .jwtAuthenticationConverter(new JwtAuthenticationConverter())
+                        )
+                );
         return http.build();
     }
 }

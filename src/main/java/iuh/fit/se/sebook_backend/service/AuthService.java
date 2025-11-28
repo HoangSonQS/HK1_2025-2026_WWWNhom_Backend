@@ -49,7 +49,7 @@ public class AuthService {
     private String SIGNER_KEY;
 
     @Value("${jwt.valid-duration}")
-    private long VALID_DURATION; // 90000 giây
+    private long VALID_DURATION; // 1800 giây (30 phút)
 
     @Autowired
     private RefreshTokenService refreshTokenService;

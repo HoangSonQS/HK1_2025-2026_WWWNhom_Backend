@@ -45,26 +45,57 @@ public class NotificationService {
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new IllegalArgumentException("Notification not found"));
 
+        // Trigger lazy loading để tránh LazyInitializationException
+        Account receiver = notification.getReceiver();
+        if (receiver == null) {
+            throw new IllegalArgumentException("Notification receiver is null");
+        }
+        Long receiverId = receiver.getId();
+        Long currentUserId = currentUser.getId();
+        
         // Đảm bảo người dùng chỉ có thể đánh dấu thông báo của chính mình
-        if (!notification.getReceiver().getId().equals(currentUser.getId())) {
+        if (receiverId == null || currentUserId == null || !receiverId.equals(currentUserId)) {
             throw new SecurityException("Cannot access this notification");
         }
 
         notification.setRead(true);
         Notification savedNotification = notificationRepository.save(notification);
+        
+        // Trigger lazy loading cho sender nếu có
+        if (savedNotification.getSender() != null) {
+            savedNotification.getSender().getUsername();
+        }
+        
         return toDto(savedNotification);
     }
 
     /**
-     * Đếm số thông báo chưa đọc của người dùng hiện tại
+     * Đánh dấu tất cả thông báo của người dùng là đã đọc.
      */
-    @Transactional(readOnly = true)
-    public Long getUnreadCount() {
+    @Transactional
+    public void markAllAsRead() {
         Account currentUser = securityUtil.getLoggedInAccount();
         List<Notification> notifications = notificationRepository.findByReceiverIdOrderByCreatedAtDesc(currentUser.getId());
-        return notifications.stream()
-                .filter(notification -> !notification.isRead())
-                .count();
+        
+        notifications.stream()
+                .filter(n -> !n.isRead())
+                .forEach(n -> {
+                    n.setRead(true);
+                    notificationRepository.save(n);
+                });
+    }
+
+    /**
+     * Đếm số thông báo chưa đọc của người dùng đang đăng nhập.
+     */
+    @Transactional(readOnly = true)
+    public long getUnreadCount() {
+        Account currentUser = securityUtil.getLoggedInAccount();
+        Long receiverId = currentUser.getId();
+        if (receiverId == null) {
+            return 0;
+        }
+        return notificationRepository.countUnreadByReceiverId(receiverId);
     }
 
     private NotificationResponseDTO toDto(Notification notification) {
