@@ -47,6 +47,16 @@ public class PromotionController {
         return ResponseEntity.ok(promotionService.deactivatePromotion(id));
     }
 
+    @PutMapping("/{id}/pause")
+    public ResponseEntity<PromotionResponseDTO> pausePromotion(@PathVariable Long id) {
+        return ResponseEntity.ok(promotionService.pausePromotion(id));
+    }
+
+    @PutMapping("/{id}/resume")
+    public ResponseEntity<PromotionResponseDTO> resumePromotion(@PathVariable Long id) {
+        return ResponseEntity.ok(promotionService.resumePromotion(id));
+    }
+
     @GetMapping("/validate")
     public ResponseEntity<PromotionResponseDTO> validatePromotionCode(@RequestParam String code) {
         return ResponseEntity.ok(promotionService.validatePromotionCode(code));

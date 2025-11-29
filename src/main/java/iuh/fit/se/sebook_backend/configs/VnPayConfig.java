@@ -13,7 +13,7 @@ public class VnPayConfig {
 
     // Các URL của VNPay (sandbox)
     public static String VNP_PAYURL = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
-    public static String VNP_RETURNURL = "http://localhost:6789/api/payment/vnpay-return"; // Đường dẫn callback
+    public static String VNP_RETURNURL; // Đường dẫn callback sẽ lấy từ cấu hình
     public static String VNP_APIURL = "https://sandbox.vnpayment.vn/merchant_webapi/api/transaction";
 
     // Thông tin cấu hình (sẽ đọc từ properties)
