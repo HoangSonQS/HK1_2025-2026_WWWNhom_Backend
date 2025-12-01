@@ -1,5 +1,6 @@
 package iuh.fit.se.sebook_backend.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -14,6 +15,7 @@ public class AccountResponse {
     private Long id;
     private String username;
     private String email;
+    @JsonProperty("isActive")
     private boolean isActive;
     private String firstName;
     private String lastName;

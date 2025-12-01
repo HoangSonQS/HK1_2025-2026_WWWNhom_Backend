@@ -1,6 +1,7 @@
 package iuh.fit.se.sebook_backend.controller;
 
 import iuh.fit.se.sebook_backend.dto.PromotionLogResponseDTO;
+import iuh.fit.se.sebook_backend.dto.PromotionResponseDTO;
 import iuh.fit.se.sebook_backend.service.PromotionLogService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -31,5 +32,12 @@ public class PromotionLogController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
         return ResponseEntity.ok(promotionLogService.getLogsByDateRange(startDate, endDate));
+    }
+
+    @GetMapping("/promotions-by-date-range")
+    public ResponseEntity<List<PromotionResponseDTO>> getPromotionsByLogDateRange(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return ResponseEntity.ok(promotionLogService.getPromotionsByLogTimeRange(startDate, endDate));
     }
 }

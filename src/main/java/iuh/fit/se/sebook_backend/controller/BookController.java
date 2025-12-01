@@ -75,7 +75,10 @@ public class BookController {
 
     @GetMapping("/category/{categoryId}")
     public ResponseEntity<List<BookDTO>> getBooksByCategory(@PathVariable Long categoryId,
-                                                             @RequestParam(defaultValue = "10") int limit) {
+                                                            @RequestParam(required = false) Integer limit) {
+        if (limit == null) {
+            return ResponseEntity.ok(bookService.filterBooksByCategory(categoryId));
+        }
         return ResponseEntity.ok(bookService.getBooksByCategoryWithLimit(categoryId, limit));
     }
 

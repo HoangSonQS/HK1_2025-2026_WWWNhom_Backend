@@ -34,6 +34,7 @@ public class NotificationController {
     }
 
     /**
+     * Đếm số thông báo chưa đọc
      * Đánh dấu tất cả thông báo là đã đọc.
      */
     @PutMapping("/mark-all-read")

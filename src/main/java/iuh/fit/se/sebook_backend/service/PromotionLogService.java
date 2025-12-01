@@ -6,6 +6,7 @@ import iuh.fit.se.sebook_backend.entity.Promotion;
 import iuh.fit.se.sebook_backend.entity.PromotionLog;
 import iuh.fit.se.sebook_backend.repository.PromotionLogRepository;
 import iuh.fit.se.sebook_backend.utils.SecurityUtil;
+import iuh.fit.se.sebook_backend.dto.PromotionResponseDTO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -60,6 +61,19 @@ public class PromotionLogService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Lấy danh sách khuyến mãi có hoạt động (log) theo khoảng thời gian dựa trên cột log_time
+     */
+    @Transactional(readOnly = true)
+    public List<PromotionResponseDTO> getPromotionsByLogTimeRange(LocalDate startDate, LocalDate endDate) {
+        LocalDateTime startDateTime = startDate.atStartOfDay();
+        LocalDateTime endDateTime = endDate.atTime(23, 59, 59);
+        return promotionLogRepository.findDistinctPromotionsByLogTimeBetween(startDateTime, endDateTime)
+                .stream()
+                .map(this::toPromotionDto)
+                .collect(Collectors.toList());
+    }
+
     private PromotionLogResponseDTO toLogDto(PromotionLog log) {
         return PromotionLogResponseDTO.builder()
                 .promotionId(log.getPromotion().getId())
@@ -67,6 +81,23 @@ public class PromotionLogService {
                 .actorName(log.getActor().getUsername())
                 .action(log.getAction())
                 .logTime(log.getLogTime())
+                .build();
+    }
+
+    private PromotionResponseDTO toPromotionDto(Promotion promotion) {
+        return PromotionResponseDTO.builder()
+                .id(promotion.getId())
+                .name(promotion.getName())
+                .code(promotion.getCode())
+                .discountPercent(promotion.getDiscountPercent())
+                .startDate(promotion.getStartDate())
+                .endDate(promotion.getEndDate())
+                .quantity(promotion.getQuantity())
+                .priceOrderActive(promotion.getPriceOrderActive())
+                .isActive(promotion.isActive())
+                .status(promotion.getStatus())
+                .createdByName(promotion.getCreatedBy() != null ? promotion.getCreatedBy().getUsername() : null)
+                .approvedByName(promotion.getApprovedBy() != null ? promotion.getApprovedBy().getUsername() : null)
                 .build();
     }
 }
