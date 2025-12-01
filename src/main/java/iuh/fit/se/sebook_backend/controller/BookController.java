@@ -3,7 +3,7 @@ package iuh.fit.se.sebook_backend.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import iuh.fit.se.sebook_backend.dto.BookDTO;
 import iuh.fit.se.sebook_backend.service.BookService;
-import iuh.fit.se.sebook_backend.service.FileStorageService;
+import iuh.fit.se.sebook_backend.service.CloudinaryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,7 +19,7 @@ public class BookController {
     @Autowired
     private BookService bookService;
     @Autowired
-    private FileStorageService fileStorageService;
+    private CloudinaryService cloudinaryService;
 
     @PostMapping
     public ResponseEntity<BookDTO> createBook(@RequestParam("book") String bookDtoString,
@@ -27,8 +27,8 @@ public class BookController {
         // Chuyển đổi chuỗi JSON thành BookDTO
         BookDTO bookDTO = new ObjectMapper().readValue(bookDtoString, BookDTO.class);
 
-        // Lưu file ảnh và lấy đường dẫn
-        String imageUrl = fileStorageService.save(image);
+        // Upload ảnh lên Cloudinary và lấy URL
+        String imageUrl = cloudinaryService.uploadImage(image);
 
         // Tạo sách với thông tin và đường dẫn ảnh
         BookDTO createdBook = bookService.createBook(bookDTO, imageUrl);
@@ -43,7 +43,7 @@ public class BookController {
         BookDTO bookDTO = new ObjectMapper().readValue(bookDtoString, BookDTO.class);
         String imageUrl = null;
         if (image != null && !image.isEmpty()) {
-            imageUrl = fileStorageService.save(image);
+            imageUrl = cloudinaryService.uploadImage(image);
         }
 
         BookDTO updatedBook = bookService.updateBook(id, bookDTO, imageUrl);
