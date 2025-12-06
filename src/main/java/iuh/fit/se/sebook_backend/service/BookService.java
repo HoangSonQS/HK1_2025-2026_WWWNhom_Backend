@@ -5,6 +5,7 @@ import iuh.fit.se.sebook_backend.entity.Book;
 import iuh.fit.se.sebook_backend.entity.Category;
 import iuh.fit.se.sebook_backend.repository.BookRepository;
 import iuh.fit.se.sebook_backend.repository.CategoryRepository;
+import iuh.fit.se.sebook_backend.service.ai.EmbeddingAsyncService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,8 @@ public class BookService {
     private BookRepository bookRepository;
     @Autowired
     private CategoryRepository categoryRepository;
+    @Autowired(required = false)
+    private EmbeddingAsyncService embeddingAsyncService;
 
     public BookDTO getBookById(Long id) {
         Book book = bookRepository.findById(id)
@@ -40,6 +43,12 @@ public class BookService {
         book.setCategories(categories);
 
         Book savedBook = bookRepository.save(book);
+        
+        // Tự động tạo embedding cho sách mới (async)
+        if (embeddingAsyncService != null) {
+            embeddingAsyncService.generateEmbeddingForBookAsync(savedBook);
+        }
+        
         return toDto(savedBook);
     }
 
@@ -64,6 +73,13 @@ public class BookService {
         book.setCategories(categories);
 
         Book updatedBook = bookRepository.save(book);
+        
+        // Tự động tạo/cập nhật embedding cho sách đã sửa (async)
+        // Xóa embedding cũ và tạo lại để đảm bảo embedding phù hợp với nội dung mới
+        if (embeddingAsyncService != null) {
+            embeddingAsyncService.generateEmbeddingForBookAsync(updatedBook, true);
+        }
+        
         return toDto(updatedBook);
     }
 

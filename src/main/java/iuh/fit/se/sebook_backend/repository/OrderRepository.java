@@ -3,6 +3,7 @@ package iuh.fit.se.sebook_backend.repository;
 import iuh.fit.se.sebook_backend.entity.Order;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -12,6 +13,17 @@ import java.util.Optional;
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Order> findByAccountId(Long accountId);
+    
+    /**
+     * Tìm đơn hàng theo accountId với fetch join để load Address và OrderDetails
+     */
+    @Query("SELECT DISTINCT o FROM Order o " +
+           "LEFT JOIN FETCH o.deliveryAddress " +
+           "LEFT JOIN FETCH o.orderDetails od " +
+           "LEFT JOIN FETCH od.book " +
+           "WHERE o.account.id = :accountId")
+    List<Order> findByAccountIdWithDetails(@Param("accountId") Long accountId);
+    
     Optional<Order> findByPaymentCode(String paymentCode);
     /**
      * Tính tổng doanh thu của các đơn hàng đã hoàn thành
