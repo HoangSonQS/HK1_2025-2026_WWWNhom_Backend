@@ -67,6 +67,9 @@ public class SecurityConfig {
 
                         .requestMatchers(HttpMethod.GET, "/api/books/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/ai/search").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/ai/chat").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/ai/generate-embeddings").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF")
 
                         .requestMatchers("/v3/api-docs/**").permitAll()
                         .requestMatchers("/swagger-ui/**").permitAll()

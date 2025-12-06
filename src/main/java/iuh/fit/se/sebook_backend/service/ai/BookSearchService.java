@@ -1,0 +1,276 @@
+package iuh.fit.se.sebook_backend.service.ai;
+
+import iuh.fit.se.sebook_backend.dto.BookDTO;
+import iuh.fit.se.sebook_backend.entity.Book;
+import iuh.fit.se.sebook_backend.entity.BookEmbedding;
+import iuh.fit.se.sebook_backend.repository.BookRepository;
+import iuh.fit.se.sebook_backend.repository.BookEmbeddingRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Service
+public class BookSearchService {
+
+    private static final Logger log = LoggerFactory.getLogger(BookSearchService.class);
+    private static final int DEFAULT_LIMIT = 10;
+    private static final double MIN_SIMILARITY_THRESHOLD = 0.2; // Giảm ngưỡng để không bỏ sót kết quả
+    
+    // Trọng số cho hybrid search
+    private static final double SEMANTIC_WEIGHT = 0.6; // 60% cho semantic similarity
+    private static final double TEXT_MATCH_WEIGHT = 0.4; // 40% cho text matching
+    
+    // Boost factors
+    private static final double TITLE_EXACT_MATCH_BOOST = 0.3; // Boost khi query xuất hiện trong title
+    private static final double TITLE_PARTIAL_MATCH_BOOST = 0.15; // Boost khi từ khóa xuất hiện trong title
+    private static final double AUTHOR_MATCH_BOOST = 0.1; // Boost khi query xuất hiện trong author
+
+    private final BookRepository bookRepository;
+    private final BookEmbeddingRepository embeddingRepository;
+    private final AIService aiService;
+
+    public BookSearchService(BookRepository bookRepository,
+                             BookEmbeddingRepository embeddingRepository,
+                             AIService aiService) {
+        this.bookRepository = bookRepository;
+        this.embeddingRepository = embeddingRepository;
+        this.aiService = aiService;
+    }
+
+    /**
+     * Semantic search tối ưu: batch load embeddings, tính cosine similarity
+     * @param query Câu truy vấn tìm kiếm
+     * @param limit Số lượng kết quả tối đa (mặc định 10)
+     * @return Danh sách sách được sắp xếp theo độ liên quan
+     */
+    @Transactional(readOnly = true)
+    public List<BookDTO> smartSearch(String query, Integer limit) {
+        if (query == null || query.trim().isEmpty()) {
+            log.warn("⚠️ Query rỗng, trả về danh sách trống");
+            return List.of();
+        }
+
+        int resultLimit = (limit != null && limit > 0) ? limit : DEFAULT_LIMIT;
+        log.info("🔍 Bắt đầu tìm kiếm semantic với query: '{}', limit: {}", query, resultLimit);
+
+        try {
+            // 1. Tạo embedding cho query
+            List<Double> queryVector = aiService.generateEmbedding(query.trim());
+            if (queryVector.isEmpty()) {
+                log.warn("⚠️ Không thể tạo embedding cho query: '{}'", query);
+                return List.of();
+            }
+
+            // 2. Load tất cả sách và embedding vào bộ nhớ
+            List<Book> allBooks = bookRepository.findAll();
+            if (allBooks.isEmpty()) {
+                log.info("📚 Không có sách nào trong database");
+                return List.of();
+            }
+
+            // 3. Map Book -> embedding vector
+            Map<Book, List<Double>> bookVectors = new HashMap<>();
+            List<BookEmbedding> allEmbeddings = embeddingRepository.findAll();
+
+            // Build map BookId -> BookEmbedding
+            Map<Long, BookEmbedding> embeddingMap = allEmbeddings.stream()
+                    .filter(be -> be.getBook() != null)
+                    .collect(Collectors.toMap(be -> be.getBook().getId(), be -> be));
+
+            int missingEmbeddings = 0;
+            for (Book book : allBooks) {
+                BookEmbedding embedding = embeddingMap.get(book.getId());
+                if (embedding != null && embedding.getEmbeddingVector() != null && !embedding.getEmbeddingVector().isEmpty()) {
+                    bookVectors.put(book, embedding.getEmbeddingVector());
+                } else {
+                    missingEmbeddings++;
+                    log.debug("📝 Sách '{}' chưa có embedding, sẽ bỏ qua trong lần tìm kiếm này", book.getTitle());
+                }
+            }
+
+            if (missingEmbeddings > 0) {
+                log.info("ℹ️ Có {} sách chưa có embedding, đã bỏ qua", missingEmbeddings);
+            }
+
+            if (bookVectors.isEmpty()) {
+                log.warn("⚠️ Không có sách nào có embedding để tìm kiếm");
+                return List.of();
+            }
+
+            // 4. Tính hybrid score: kết hợp semantic similarity + text matching
+            Map<Book, Double> scoreMap = new HashMap<>();
+            String queryLower = query.trim().toLowerCase();
+            String[] queryWords = queryLower.split("\\s+");
+            
+            for (Map.Entry<Book, List<Double>> entry : bookVectors.entrySet()) {
+                Book book = entry.getKey();
+                List<Double> bookVector = entry.getValue();
+                
+                // 4.1. Tính semantic similarity (0.0 - 1.0)
+                double semanticScore = cosineSimilarity(queryVector, bookVector);
+                
+                // 4.2. Tính text matching score (0.0 - 1.0)
+                double textScore = calculateTextMatchScore(book, queryLower, queryWords);
+                
+                // 4.3. Tính hybrid score (kết hợp semantic + text matching)
+                double hybridScore = (semanticScore * SEMANTIC_WEIGHT) + (textScore * TEXT_MATCH_WEIGHT);
+                
+                // 4.4. Áp dụng boost cho exact/partial matches
+                double boostedScore = applyBoosts(book, queryLower, queryWords, hybridScore);
+                
+                // Chỉ thêm vào kết quả nếu score >= ngưỡng tối thiểu
+                if (boostedScore >= MIN_SIMILARITY_THRESHOLD) {
+                    scoreMap.put(book, boostedScore);
+                }
+            }
+
+            // 5. Sắp xếp và lấy top kết quả
+            List<Book> topBooks = scoreMap.entrySet().stream()
+                    .sorted(Map.Entry.<Book, Double>comparingByValue().reversed())
+                    .limit(resultLimit)
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toList());
+
+            // 6. Map sang BookDTO
+            List<BookDTO> results = topBooks.stream()
+                    .map(this::toBookDTO)
+                    .collect(Collectors.toList());
+
+            log.info("✅ Tìm thấy {} kết quả cho query: '{}'", results.size(), query);
+            return results;
+
+        } catch (Exception e) {
+            log.error("❌ Lỗi khi thực hiện semantic search: {}", e.getMessage(), e);
+            return List.of();
+        }
+    }
+
+    /**
+     * Tính cosine similarity giữa 2 vector
+     */
+    private double cosineSimilarity(List<Double> v1, List<Double> v2) {
+        if (v1 == null || v2 == null || v1.size() != v2.size()) {
+            return 0.0;
+        }
+
+        double dot = 0.0, normA = 0.0, normB = 0.0;
+        for (int i = 0; i < v1.size(); i++) {
+            double a = v1.get(i);
+            double b = v2.get(i);
+            dot += a * b;
+            normA += a * a;
+            normB += b * b;
+        }
+
+        double denominator = Math.sqrt(normA) * Math.sqrt(normB);
+        if (denominator == 0.0) {
+            return 0.0;
+        }
+
+        return dot / (denominator + 1e-10); // Thêm epsilon để tránh chia cho 0
+    }
+    
+    /**
+     * Tính text matching score dựa trên việc query xuất hiện trong title/author
+     */
+    private double calculateTextMatchScore(Book book, String queryLower, String[] queryWords) {
+        double score = 0.0;
+        
+        String title = (book.getTitle() != null) ? book.getTitle().toLowerCase() : "";
+        String author = (book.getAuthor() != null) ? book.getAuthor().toLowerCase() : "";
+        
+        // 1. Exact match trong title (quan trọng nhất)
+        if (title.contains(queryLower)) {
+            score += 0.8; // Rất cao nếu query xuất hiện chính xác trong title
+        }
+        
+        // 2. Tất cả từ khóa xuất hiện trong title
+        boolean allWordsInTitle = true;
+        int wordsInTitle = 0;
+        for (String word : queryWords) {
+            if (title.contains(word)) {
+                wordsInTitle++;
+            } else {
+                allWordsInTitle = false;
+            }
+        }
+        if (allWordsInTitle && queryWords.length > 0) {
+            score += 0.6; // Tất cả từ khóa có trong title
+        } else if (wordsInTitle > 0) {
+            score += (wordsInTitle * 0.2) / queryWords.length; // Một phần từ khóa có trong title
+        }
+        
+        // 3. Từ khóa xuất hiện trong author
+        for (String word : queryWords) {
+            if (author.contains(word)) {
+                score += 0.05;
+                break; // Chỉ cộng 1 lần
+            }
+        }
+        
+        // Normalize về 0.0 - 1.0
+        return Math.min(score, 1.0);
+    }
+    
+    /**
+     * Áp dụng boost cho exact/partial matches
+     */
+    private double applyBoosts(Book book, String queryLower, String[] queryWords, double baseScore) {
+        double boostedScore = baseScore;
+        
+        String title = (book.getTitle() != null) ? book.getTitle().toLowerCase() : "";
+        String author = (book.getAuthor() != null) ? book.getAuthor().toLowerCase() : "";
+        
+        // Boost 1: Exact match trong title (rất quan trọng)
+        if (title.contains(queryLower)) {
+            boostedScore += TITLE_EXACT_MATCH_BOOST;
+        }
+        
+        // Boost 2: Tất cả từ khóa có trong title
+        boolean allWordsInTitle = true;
+        for (String word : queryWords) {
+            if (!title.contains(word)) {
+                allWordsInTitle = false;
+                break;
+            }
+        }
+        if (allWordsInTitle && queryWords.length > 0) {
+            boostedScore += TITLE_PARTIAL_MATCH_BOOST;
+        }
+        
+        // Boost 3: Query xuất hiện trong author
+        if (author.contains(queryLower)) {
+            boostedScore += AUTHOR_MATCH_BOOST;
+        }
+        
+        // Đảm bảo không vượt quá 1.0
+        return Math.min(boostedScore, 1.0);
+    }
+
+    /**
+     * Convert Book entity to BookDTO
+     */
+    private BookDTO toBookDTO(Book book) {
+        BookDTO dto = new BookDTO();
+        dto.setId(book.getId());
+        dto.setTitle(book.getTitle());
+        dto.setAuthor(book.getAuthor());
+        dto.setPrice(book.getPrice());
+        dto.setQuantity(book.getQuantity());
+        dto.setImageUrl(book.getImageUrl());
+        if (book.getCategories() != null) {
+            dto.setCategoryIds(book.getCategories().stream()
+                    .map(cat -> cat.getId())
+                    .collect(Collectors.toSet()));
+            dto.setCategoryNames(book.getCategories().stream()
+                    .map(cat -> cat.getName())
+                    .collect(Collectors.toSet()));
+        }
+        return dto;
+    }
+}
+
