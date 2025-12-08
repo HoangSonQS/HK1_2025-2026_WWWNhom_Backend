@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface ImportStockDetailRepository extends JpaRepository<ImportStockDetail, Long> {
     List<ImportStockDetail> findByImportStockId(Long importStockId);
+    List<ImportStockDetail> findByBookIdOrderByImportStockImportDateDesc(Long bookId);
 }

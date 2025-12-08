@@ -162,10 +162,34 @@ public class PromotionService {
 
     @Transactional(readOnly = true)
     public PromotionResponseDTO validatePromotionCode(String code) {
+        LocalDate today = LocalDate.now();
+        
+        // Tìm promotion theo code
         Promotion promotion = promotionRepository
-                .findByCodeAndIsActiveTrueAndEndDateAfter(code.trim(), LocalDate.now())
+                .findByCode(code.trim())
                 .orElseThrow(() -> new IllegalArgumentException("Invalid or expired promotion code"));
         
+        // Kiểm tra isActive
+        if (!promotion.isActive()) {
+            throw new IllegalArgumentException("Promotion code is not active");
+        }
+        
+        // Kiểm tra status phải là ACTIVE
+        if (!"ACTIVE".equalsIgnoreCase(promotion.getStatus())) {
+            throw new IllegalArgumentException("Promotion code is not active. Current status: " + promotion.getStatus());
+        }
+        
+        // Kiểm tra ngày bắt đầu
+        if (promotion.getStartDate().isAfter(today)) {
+            throw new IllegalArgumentException("Promotion code has not started yet. Start date: " + promotion.getStartDate());
+        }
+        
+        // Kiểm tra ngày kết thúc
+        if (promotion.getEndDate().isBefore(today)) {
+            throw new IllegalArgumentException("Promotion code has expired. End date: " + promotion.getEndDate());
+        }
+        
+        // Kiểm tra số lượng còn lại
         if (promotion.getQuantity() <= 0) {
             throw new IllegalStateException("Promotion code has been fully used");
         }

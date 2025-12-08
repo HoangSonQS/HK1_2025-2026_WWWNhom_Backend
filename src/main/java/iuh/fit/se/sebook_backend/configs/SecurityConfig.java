@@ -13,8 +13,6 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import iuh.fit.se.sebook_backend.configs.CustomerJwtDecoder;
-import iuh.fit.se.sebook_backend.configs.JwtAuthenticationConverter;
 
 import java.util.Arrays;
 
@@ -90,7 +88,36 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/orders/all").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF")
 
                         .requestMatchers("/api/suppliers/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_WAREHOUSE_STAFF")
+                        // Lịch sử nhập kho theo sách - cho Admin, Seller, Warehouse
+                        .requestMatchers(HttpMethod.GET, "/api/import-stocks/books/{bookId}/history").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF", "SCOPE_WAREHOUSE_STAFF")
                         .requestMatchers("/api/import-stocks/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_WAREHOUSE_STAFF")
+                        // Stock Request: seller tạo, warehouse duyệt
+                        .requestMatchers(HttpMethod.POST, "/api/stock-requests").hasAuthority("SCOPE_SELLER_STAFF")
+                        .requestMatchers(HttpMethod.GET, "/api/stock-requests/my").hasAuthority("SCOPE_SELLER_STAFF")
+                        .requestMatchers(HttpMethod.GET, "/api/stock-requests").hasAuthority("SCOPE_WAREHOUSE_STAFF")
+                        .requestMatchers(HttpMethod.PUT, "/api/stock-requests/{id}/approve").hasAuthority("SCOPE_WAREHOUSE_STAFF")
+                        .requestMatchers(HttpMethod.PUT, "/api/stock-requests/{id}/reject").hasAuthority("SCOPE_WAREHOUSE_STAFF")
+                        // Customer management (seller staff & admin)
+                        .requestMatchers(HttpMethod.GET, "/api/customers/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF")
+                        // Return/Refund
+                        .requestMatchers(HttpMethod.POST, "/api/return-requests").authenticated() // customer gửi, seller cũng có thể gửi hộ
+                        .requestMatchers(HttpMethod.GET, "/api/return-requests/my").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/return-requests").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF")
+                        .requestMatchers(HttpMethod.PUT, "/api/return-requests/{id}/approve").hasAuthority("SCOPE_SELLER_STAFF")
+                        .requestMatchers(HttpMethod.PUT, "/api/return-requests/{id}/reject").hasAuthority("SCOPE_SELLER_STAFF")
+                        // Stock Checking/Audit (Warehouse)
+                        .requestMatchers("/api/stock-checks/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_WAREHOUSE_STAFF")
+                        // Return to Warehouse (Seller tạo, Warehouse duyệt)
+                        .requestMatchers(HttpMethod.POST, "/api/warehouse-returns").hasAuthority("SCOPE_SELLER_STAFF")
+                        .requestMatchers(HttpMethod.GET, "/api/warehouse-returns/my").hasAuthority("SCOPE_SELLER_STAFF")
+                        .requestMatchers(HttpMethod.GET, "/api/warehouse-returns").hasAuthority("SCOPE_WAREHOUSE_STAFF")
+                        .requestMatchers(HttpMethod.PUT, "/api/warehouse-returns/{id}/approve").hasAuthority("SCOPE_WAREHOUSE_STAFF")
+                        .requestMatchers(HttpMethod.PUT, "/api/warehouse-returns/{id}/reject").hasAuthority("SCOPE_WAREHOUSE_STAFF")
+                        // Purchase Orders (Warehouse/Admin)
+                        .requestMatchers(HttpMethod.POST, "/api/purchase-orders").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_WAREHOUSE_STAFF")
+                        .requestMatchers(HttpMethod.GET, "/api/purchase-orders").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_WAREHOUSE_STAFF")
+                        .requestMatchers(HttpMethod.PUT, "/api/purchase-orders/{id}/approve").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_WAREHOUSE_STAFF")
+                        .requestMatchers(HttpMethod.PUT, "/api/purchase-orders/{id}/reject").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_WAREHOUSE_STAFF")
 
                         .requestMatchers(HttpMethod.GET, "/api/promotions/validate").authenticated()
                         .requestMatchers("/api/promotions/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF")
@@ -104,6 +131,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/admin/accounts/me").authenticated() // Cho phép user xem thông tin của mình
                         .requestMatchers(HttpMethod.PUT, "/api/admin/accounts/me").authenticated() // Cho phép user tự cập nhật thông tin của mình
                         .requestMatchers("/api/user/addresses/**").authenticated() // Cho phép user quản lý địa chỉ
+                        .requestMatchers("/api/admin/statistics/**").hasAnyAuthority("SCOPE_ADMIN", "SCOPE_SELLER_STAFF", "SCOPE_WAREHOUSE_STAFF") // Cho phép admin, seller và warehouse xem thống kê
                         .requestMatchers("/api/admin/**").hasAuthority("SCOPE_ADMIN")
 
                         .anyRequest().authenticated()
