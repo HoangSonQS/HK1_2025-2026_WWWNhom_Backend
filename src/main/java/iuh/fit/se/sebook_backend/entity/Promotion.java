@@ -34,8 +34,14 @@ public class Promotion {
     @Column(nullable = false)
     private int quantity;
 
+    @Column(nullable = true)
+    private Double priceOrderActive; // giá để có thể áp dụng mã
+
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true; // Dùng cho xóa mềm
+
+    @Column(name ="status" ,length = 20, nullable = true) // Tạm thời nullable để migration
+    private String status = "PENDING"; // PENDING, ACTIVE, REJECTED, PAUSED
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_account_id")

@@ -29,9 +29,27 @@ public class OrderController {
         return ResponseEntity.ok(orderService.getMyOrders());
     }
 
+    @GetMapping("/{orderId}")
+    public ResponseEntity<OrderDTO> getOrderById(@PathVariable Long orderId) {
+        OrderDTO order = orderService.getOrderById(orderId);
+        return ResponseEntity.ok(order);
+    }
+
     @PutMapping("/{orderId}/status")
     public ResponseEntity<OrderDTO> updateOrderStatus(@PathVariable Long orderId, @RequestBody UpdateOrderStatusRequest request) {
         OrderDTO updatedOrder = orderService.updateOrderStatus(orderId, request.getStatus());
+        return ResponseEntity.ok(updatedOrder);
+    }
+
+    @PutMapping("/{orderId}/cancel")
+    public ResponseEntity<OrderDTO> cancelOrder(@PathVariable Long orderId) {
+        OrderDTO updatedOrder = orderService.cancelOrderByCustomer(orderId);
+        return ResponseEntity.ok(updatedOrder);
+    }
+
+    @PutMapping("/{orderId}/confirm-received")
+    public ResponseEntity<OrderDTO> confirmReceived(@PathVariable Long orderId) {
+        OrderDTO updatedOrder = orderService.confirmReceivedByCustomer(orderId);
         return ResponseEntity.ok(updatedOrder);
     }
 

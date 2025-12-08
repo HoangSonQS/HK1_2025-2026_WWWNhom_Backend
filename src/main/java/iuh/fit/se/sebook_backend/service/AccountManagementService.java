@@ -2,23 +2,48 @@ package iuh.fit.se.sebook_backend.service;
 
 import iuh.fit.se.sebook_backend.dto.AccountResponse;
 import iuh.fit.se.sebook_backend.dto.AccountStatusUpdateRequest;
+import iuh.fit.se.sebook_backend.dto.CreateStaffAccountRequest;
+import iuh.fit.se.sebook_backend.dto.UpdateAccountRolesRequest;
+import iuh.fit.se.sebook_backend.dto.AddressDTO;
+import iuh.fit.se.sebook_backend.dto.AddressRequestDTO;
+import iuh.fit.se.sebook_backend.dto.UpdateAccountRequest;
 import iuh.fit.se.sebook_backend.entity.Account;
+import iuh.fit.se.sebook_backend.entity.Address;
 import iuh.fit.se.sebook_backend.entity.Role;
 import iuh.fit.se.sebook_backend.repository.AccountRepository;
+import iuh.fit.se.sebook_backend.repository.RoleRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import iuh.fit.se.sebook_backend.repository.AddressRepository;
+import iuh.fit.se.sebook_backend.utils.SecurityUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
 public class AccountManagementService {
-
     private final AccountRepository accountRepository;
+    private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final AddressRepository addressRepository;
+    private final SecurityUtil securityUtil;
 
-    public AccountManagementService(AccountRepository accountRepository) {
+    @Autowired
+    public AccountManagementService(AccountRepository accountRepository,
+                                    RoleRepository roleRepository,
+                                    PasswordEncoder passwordEncoder,
+                                    AddressRepository addressRepository,
+                                    SecurityUtil securityUtil) {
         this.accountRepository = accountRepository;
+        this.roleRepository = roleRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.addressRepository = addressRepository;
+        this.securityUtil = securityUtil;
     }
 
     /**
@@ -31,6 +56,16 @@ public class AccountManagementService {
     }
 
     /**
+     * Lấy thông tin tài khoản của chính người dùng đang đăng nhập
+     */
+    public AccountResponse getMyAccount() {
+        Account account = securityUtil.getLoggedInAccount();
+        // Load addresses để đảm bảo có dữ liệu
+        account.getAddresses().size(); // Trigger lazy loading
+        return toDto(account);
+    }
+
+    /**
      * Cập nhật trạng thái (active/inactive) của tài khoản
      */
     @Transactional
@@ -38,20 +73,314 @@ public class AccountManagementService {
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new IllegalArgumentException("Account not found"));
 
-        account.setActive(request.isActive());
+        boolean oldStatus = account.isActive();
+        boolean newStatus = request.getIsActive() != null ? request.getIsActive() : false;
+        
+        System.out.println("🔄 Updating account status - ID: " + accountId + 
+                          ", Old: " + oldStatus + ", New: " + newStatus);
+        
+        account.setActive(newStatus);
+        Account savedAccount = accountRepository.saveAndFlush(account);
+        
+        // Reload from database to verify
+        Account verifiedAccount = accountRepository.findById(accountId)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found after save"));
+        
+        System.out.println("✅ Saved account status - ID: " + accountId + 
+                          ", Status in DB: " + verifiedAccount.isActive());
+        
+        if (verifiedAccount.isActive() != newStatus) {
+            throw new IllegalStateException("Failed to update account status. Expected: " + 
+                                           newStatus + ", but got: " + verifiedAccount.isActive());
+        }
+        
+        return toDto(verifiedAccount);
+    }
+
+    /**
+     * Cập nhật thông tin tài khoản của chính người dùng đang đăng nhập
+     */
+    @Transactional
+    public AccountResponse updateMyAccount(UpdateAccountRequest request) {
+        Account account = securityUtil.getLoggedInAccount();
+        return updateAccountInternal(account, request);
+    }
+
+    /**
+     * Cập nhật thông tin tài khoản khác (chỉ dành cho admin)
+     */
+    @Transactional
+    public AccountResponse updateAccount(Long accountId, UpdateAccountRequest request) {
+        Account account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+        
+        // Kiểm tra quyền admin
+        Account currentAccount = securityUtil.getLoggedInAccount();
+        boolean isAdmin = currentAccount.getRoles().stream()
+                .anyMatch(role -> role.getName().equalsIgnoreCase("admin"));
+        
+        if (!isAdmin) {
+            throw new IllegalArgumentException("Chỉ có admin mới có quyền cập nhật tài khoản khác");
+        }
+        
+        return updateAccountInternal(account, request);
+    }
+
+    /**
+     * Logic chung để cập nhật thông tin tài khoản
+     */
+    private AccountResponse updateAccountInternal(Account account, UpdateAccountRequest request) {
+        // Kiểm tra username mới có bị trùng không (nếu thay đổi)
+        if (request.getUsername() != null && !request.getUsername().equals(account.getUsername())) {
+            if (accountRepository.findByUsername(request.getUsername()).isPresent()) {
+                throw new IllegalArgumentException("Tên đăng nhập đã tồn tại");
+            }
+            account.setUsername(request.getUsername());
+        }
+
+        // Kiểm tra email mới có bị trùng không (nếu thay đổi)
+        if (request.getEmail() != null && !request.getEmail().equals(account.getEmail())) {
+            if (accountRepository.findByEmail(request.getEmail()).isPresent()) {
+                throw new IllegalArgumentException("Email đã được sử dụng");
+            }
+            account.setEmail(request.getEmail());
+        }
+
+        // Cập nhật thông tin cá nhân
+        if (request.getFirstName() != null) {
+            account.setFirstName(request.getFirstName());
+        }
+        if (request.getLastName() != null) {
+            account.setLastName(request.getLastName());
+        }
+        if (request.getPhoneNumber() != null) {
+            account.setPhoneNumber(request.getPhoneNumber());
+        }
+
         Account savedAccount = accountRepository.save(account);
         return toDto(savedAccount);
     }
 
+    /**
+     * Tạo tài khoản nhân viên mới (chỉ ADMIN)
+     */
+    @Transactional
+    public AccountResponse createStaffAccount(CreateStaffAccountRequest request) {
+        // Kiểm tra username đã tồn tại
+        if (accountRepository.findByUsername(request.getUsername()).isPresent()) {
+            throw new IllegalArgumentException("Tên đăng nhập đã tồn tại");
+        }
+        
+        // Kiểm tra email đã tồn tại
+        if (accountRepository.findByEmail(request.getEmail()).isPresent()) {
+            throw new IllegalArgumentException("Email đã được sử dụng");
+        }
+
+        Account account = new Account();
+        account.setUsername(request.getUsername());
+        account.setEmail(request.getEmail());
+        account.setPassword(passwordEncoder.encode(request.getPassword()));
+        account.setActive(true);
+
+        // Thêm roles
+        Set<Role> roles = new HashSet<>();
+        for (String roleName : request.getRoles()) {
+            Role role = roleRepository.findByName(roleName.toUpperCase())
+                    .orElseThrow(() -> new IllegalArgumentException("Role không tồn tại: " + roleName));
+            roles.add(role);
+        }
+        account.setRoles(roles);
+
+        Account savedAccount = accountRepository.save(account);
+        return toDto(savedAccount);
+    }
+
+    /**
+     * Cập nhật roles của tài khoản
+     */
+    @Transactional
+    public AccountResponse updateAccountRoles(Long accountId, UpdateAccountRolesRequest request) {
+        Account account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+
+        // Cập nhật roles
+        Set<Role> roles = new HashSet<>();
+        for (String roleName : request.getRoles()) {
+            Role role = roleRepository.findByName(roleName.toUpperCase())
+                    .orElseThrow(() -> new IllegalArgumentException("Role không tồn tại: " + roleName));
+            roles.add(role);
+        }
+        account.setRoles(roles);
+
+        Account savedAccount = accountRepository.save(account);
+        return toDto(savedAccount);
+    }
+    @Transactional
+    public AddressDTO addAddress(AddressRequestDTO request) {
+        Account account = securityUtil.getLoggedInAccount();
+        
+        Address address = new Address();
+        address.setAccount(account);
+        address.setAddressType(request.getAddressType() != null ? request.getAddressType() : "OTHER");
+        address.setStreet(request.getStreet());
+        address.setWard(request.getWard());
+        address.setDistrict(request.getDistrict());
+        address.setCity(request.getCity());
+        address.setPhoneNumber(request.getPhoneNumber());
+        address.setRecipientName(request.getRecipientName());
+        
+        // Nếu đặt làm mặc định hoặc đây là địa chỉ đầu tiên
+        boolean shouldSetDefault = request.getIsDefault() != null && request.getIsDefault();
+        if (shouldSetDefault || addressRepository.findByAccount(account).isEmpty()) {
+            // Bỏ mặc định của các địa chỉ khác
+            addressRepository.findByAccount(account).forEach(addr -> addr.setDefault(false));
+            address.setDefault(true);
+        } else {
+            address.setDefault(false);
+        }
+        
+        Address savedAddress = addressRepository.save(address);
+        return toAddressDto(savedAddress);
+    }
+
+    /**
+     * Cập nhật địa chỉ
+     */
+    @Transactional
+    public AddressDTO updateAddress(Long addressId, AddressRequestDTO request) {
+        Account account = securityUtil.getLoggedInAccount();
+        Address address = addressRepository.findById(addressId)
+                .orElseThrow(() -> new IllegalArgumentException("Địa chỉ không tồn tại"));
+        
+        // Kiểm tra địa chỉ thuộc về tài khoản đang đăng nhập
+        if (!address.getAccount().getId().equals(account.getId())) {
+            throw new IllegalArgumentException("Bạn không có quyền cập nhật địa chỉ này");
+        }
+        
+        if (request.getAddressType() != null) {
+            address.setAddressType(request.getAddressType());
+        }
+        if (request.getStreet() != null) {
+            address.setStreet(request.getStreet());
+        }
+        if (request.getWard() != null) {
+            address.setWard(request.getWard());
+        }
+        if (request.getDistrict() != null) {
+            address.setDistrict(request.getDistrict());
+        }
+        if (request.getCity() != null) {
+            address.setCity(request.getCity());
+        }
+        if (request.getPhoneNumber() != null) {
+            address.setPhoneNumber(request.getPhoneNumber());
+        }
+        if (request.getRecipientName() != null) {
+            address.setRecipientName(request.getRecipientName());
+        }
+        
+        // Xử lý đặt làm mặc định
+        if (request.getIsDefault() != null && request.getIsDefault()) {
+            // Bỏ mặc định của các địa chỉ khác
+            addressRepository.findByAccount(account).forEach(addr -> {
+                if (!addr.getId().equals(addressId)) {
+                    addr.setDefault(false);
+                }
+            });
+            address.setDefault(true);
+        }
+        
+        Address savedAddress = addressRepository.save(address);
+        return toAddressDto(savedAddress);
+    }
+
+    /**
+     * Xóa địa chỉ
+     */
+    @Transactional
+    public void deleteAddress(Long addressId) {
+        Account account = securityUtil.getLoggedInAccount();
+        Address address = addressRepository.findById(addressId)
+                .orElseThrow(() -> new IllegalArgumentException("Địa chỉ không tồn tại"));
+        
+        // Kiểm tra địa chỉ thuộc về tài khoản đang đăng nhập
+        if (!address.getAccount().getId().equals(account.getId())) {
+            throw new IllegalArgumentException("Bạn không có quyền xóa địa chỉ này");
+        }
+        
+        addressRepository.delete(address);
+    }
+
+    /**
+     * Đặt địa chỉ làm mặc định
+     */
+    @Transactional
+    public AddressDTO setDefaultAddress(Long addressId) {
+        Account account = securityUtil.getLoggedInAccount();
+        Address address = addressRepository.findById(addressId)
+                .orElseThrow(() -> new IllegalArgumentException("Địa chỉ không tồn tại"));
+        
+        // Kiểm tra địa chỉ thuộc về tài khoản đang đăng nhập
+        if (!address.getAccount().getId().equals(account.getId())) {
+            throw new IllegalArgumentException("Bạn không có quyền thay đổi địa chỉ này");
+        }
+        
+        // Bỏ mặc định của các địa chỉ khác
+        addressRepository.findByAccount(account).forEach(addr -> {
+            if (!addr.getId().equals(addressId)) {
+                addr.setDefault(false);
+                addressRepository.save(addr);
+            }
+        });
+        
+        address.setDefault(true);
+        Address savedAddress = addressRepository.save(address);
+        return toAddressDto(savedAddress);
+    }
+
+    /**
+     * Lấy danh sách địa chỉ của tài khoản đang đăng nhập
+     */
+    public List<AddressDTO> getMyAddresses() {
+        Account account = securityUtil.getLoggedInAccount();
+        return addressRepository.findByAccount(account).stream()
+                .map(this::toAddressDto)
+                .collect(Collectors.toList());
+    }
+
     private AccountResponse toDto(Account account) {
+        List<AddressDTO> addressDTOs = account.getAddresses() != null 
+                ? account.getAddresses().stream()
+                        .map(this::toAddressDto)
+                        .collect(Collectors.toList())
+                : List.of();
+        
         return AccountResponse.builder()
                 .id(account.getId())
                 .username(account.getUsername())
                 .email(account.getEmail())
                 .isActive(account.isActive())
+                .firstName(account.getFirstName())
+                .lastName(account.getLastName())
+                .phoneNumber(account.getPhoneNumber())
                 .roles(account.getRoles().stream()
                         .map(Role::getName)
                         .collect(Collectors.toSet()))
+                .addresses(addressDTOs)
+                .build();
+    }
+
+    private AddressDTO toAddressDto(Address address) {
+        return AddressDTO.builder()
+                .id(address.getId())
+                .addressType(address.getAddressType())
+                .isDefault(address.isDefault())
+                .street(address.getStreet())
+                .ward(address.getWard())
+                .district(address.getDistrict())
+                .city(address.getCity())
+                .phoneNumber(address.getPhoneNumber())
+                .recipientName(address.getRecipientName())
                 .build();
     }
 }

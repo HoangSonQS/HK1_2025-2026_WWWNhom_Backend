@@ -32,4 +32,22 @@ public class NotificationController {
     public ResponseEntity<NotificationResponseDTO> markAsRead(@PathVariable Long id) {
         return ResponseEntity.ok(notificationService.markAsRead(id));
     }
+
+    /**
+     * Đếm số thông báo chưa đọc
+     * Đánh dấu tất cả thông báo là đã đọc.
+     */
+    @PutMapping("/mark-all-read")
+    public ResponseEntity<String> markAllAsRead() {
+        notificationService.markAllAsRead();
+        return ResponseEntity.ok("Tất cả thông báo đã được đánh dấu là đã đọc");
+    }
+
+    /**
+     * Lấy số lượng thông báo chưa đọc.
+     */
+    @GetMapping("/unread-count")
+    public ResponseEntity<Long> getUnreadCount() {
+        return ResponseEntity.ok(notificationService.getUnreadCount());
+    }
 }

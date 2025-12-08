@@ -2,10 +2,14 @@ package iuh.fit.se.sebook_backend.controller;
 
 import iuh.fit.se.sebook_backend.dto.PaymentRequestDTO;
 import iuh.fit.se.sebook_backend.dto.PaymentResponseDTO;
+import iuh.fit.se.sebook_backend.dto.PaymentReturnDTO;
 import iuh.fit.se.sebook_backend.service.VnPayService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.net.URI;
 
 @RestController
 @RequestMapping("/api/payment")
@@ -32,16 +36,11 @@ public class PaymentController {
      * Endpoint này phải được truy cập công khai
      */
     @GetMapping("/vnpay-return")
-    public ResponseEntity<String> vnpayReturn(HttpServletRequest request) {
-        boolean success = vnPayService.processPaymentReturn(request);
-        if (success) {
-            // TODO: Chuyển hướng về trang thành công của Frontend
-            // return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("http://frontend.com/payment-success")).build();
-            return ResponseEntity.ok("Thanh toán thành công!");
-        } else {
-            // TODO: Chuyển hướng về trang thất bại của Frontend
-            // return ResponseEntity.status(HttpStatus.FOUND).location(URI.create("http://frontend.com/payment-failure")).build();
-            return ResponseEntity.badRequest().body("Thanh toán thất bại hoặc chữ ký không hợp lệ.");
-        }
+    public ResponseEntity<Void> vnpayReturn(HttpServletRequest request) {
+        PaymentReturnDTO result = vnPayService.processPaymentReturn(request);
+        String redirectUrl = vnPayService.buildClientRedirectUrl(result);
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .location(URI.create(redirectUrl))
+                .build();
     }
 }

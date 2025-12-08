@@ -15,13 +15,17 @@ import java.util.stream.Collectors;
 @Service
 public class ImportStockService {
     private final ImportStockRepository importStockRepository;
+    private final ImportStockDetailRepository importStockDetailRepository;
     private final SupplierRepository supplierRepository;
     private final BookRepository bookRepository;
     private final SecurityUtil securityUtil;
 
-    public ImportStockService(ImportStockRepository importStockRepository, SupplierRepository supplierRepository,
+    public ImportStockService(ImportStockRepository importStockRepository, 
+                              ImportStockDetailRepository importStockDetailRepository,
+                              SupplierRepository supplierRepository,
                               BookRepository bookRepository, SecurityUtil securityUtil) {
         this.importStockRepository = importStockRepository;
+        this.importStockDetailRepository = importStockDetailRepository;
         this.supplierRepository = supplierRepository;
         this.bookRepository = bookRepository;
         this.securityUtil = securityUtil;
@@ -73,6 +77,29 @@ public class ImportStockService {
     @Transactional(readOnly = true)
     public List<ImportStockResponseDTO> getAllImportStocks() {
         return importStockRepository.findAll().stream().map(this::toResponseDto).collect(Collectors.toList());
+    }
+
+    /**
+     * Lấy lịch sử nhập kho của một cuốn sách.
+     */
+    @Transactional(readOnly = true)
+    public List<BookImportHistoryDTO> getImportHistoryByBookId(Long bookId) {
+        List<ImportStockDetail> details = importStockDetailRepository.findByBookIdOrderByImportStockImportDateDesc(bookId);
+        
+        return details.stream()
+                .map(detail -> {
+                    ImportStock importStock = detail.getImportStock();
+                    return BookImportHistoryDTO.builder()
+                            .importStockId(importStock.getId())
+                            .supplierName(importStock.getSupplier().getName())
+                            .createdByName(importStock.getCreatedBy().getUsername())
+                            .importDate(importStock.getImportDate())
+                            .quantity(detail.getQuantity())
+                            .importPrice(detail.getImportPrice())
+                            .totalAmount(detail.getQuantity() * detail.getImportPrice())
+                            .build();
+                })
+                .collect(Collectors.toList());
     }
 
     private ImportStockResponseDTO toResponseDto(ImportStock importStock) {

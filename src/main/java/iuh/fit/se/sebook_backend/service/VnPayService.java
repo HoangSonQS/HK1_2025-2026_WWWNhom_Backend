@@ -3,15 +3,15 @@ package iuh.fit.se.sebook_backend.service;
 import iuh.fit.se.sebook_backend.configs.VnPayConfig;
 import iuh.fit.se.sebook_backend.dto.PaymentRequestDTO;
 import iuh.fit.se.sebook_backend.dto.PaymentResponseDTO;
+import iuh.fit.se.sebook_backend.dto.PaymentReturnDTO;
 import iuh.fit.se.sebook_backend.entity.Order;
 import iuh.fit.se.sebook_backend.repository.OrderRepository;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
@@ -26,13 +26,26 @@ public class VnPayService {
     @Value("${vnpay.hashsecret}")
     private String vnp_HashSecret;
 
+    @Value("${vnpay.return-url}")
+    private String vnp_ReturnUrl;
+
+    @Value("${app.frontend.url:http://localhost:5173}")
+    private String frontendBaseUrl;
+
     private final OrderRepository orderRepository;
 
-    public VnPayService(OrderRepository orderRepository) {
+    private final OrderService orderService;
+
+    public VnPayService(OrderRepository orderRepository, OrderService orderService) {
         this.orderRepository = orderRepository;
-        // Gán giá trị vào VnPayConfig để các phương thức static có thể dùng
+        this.orderService = orderService;
+    }
+
+    @PostConstruct
+    public void initConfig() {
         VnPayConfig.VNP_TMNCODE = this.vnp_TmnCode;
         VnPayConfig.VNP_HASHSECRET = this.vnp_HashSecret;
+        VnPayConfig.VNP_RETURNURL = this.vnp_ReturnUrl;
     }
 
     @Transactional
@@ -113,10 +126,10 @@ public class VnPayService {
     /**
      * Xử lý dữ liệu VNPay trả về (callback)
      * @param request HttpServletRequest chứa các tham số từ VNPay
-     * @return true nếu thanh toán thành công và hợp lệ, false nếu thất bại
+     * @return kết quả thanh toán để chuyển hướng về frontend
      */
     @Transactional
-    public boolean processPaymentReturn(HttpServletRequest request) {
+    public PaymentReturnDTO processPaymentReturn(HttpServletRequest request) {
         try {
             Map<String, String> params = VnPayConfig.getParamsFromRequest(request);
             String vnp_SecureHash = params.remove("vnp_SecureHash");
@@ -145,7 +158,10 @@ public class VnPayService {
             // Kiểm tra chữ ký
             String mySecureHash = VnPayConfig.hmacSHA512(vnp_HashSecret, hashData.toString());
             if (!mySecureHash.equals(vnp_SecureHash)) {
-                return false; // Chữ ký không hợp lệ
+                return PaymentReturnDTO.builder()
+                        .success(false)
+                        .message("Chữ ký VNPay không hợp lệ")
+                        .build();
             }
 
             // Chữ ký hợp lệ, kiểm tra trạng thái thanh toán
@@ -161,16 +177,46 @@ public class VnPayService {
                     // Cập nhật trạng thái đơn hàng
                     order.setStatus(Order.PROCESSING); // Hoặc "PAID" tùy logic
                     orderRepository.save(order);
+                    // Gửi email xác nhận sau khi thanh toán thành công
+                    orderService.sendOrderConfirmationEmail(order);
 
-                    // TODO: Gửi email xác nhận thanh toán thành công (nếu cần)
-
-                    return true;
+                    return PaymentReturnDTO.builder()
+                            .success(true)
+                            .orderId(order.getId())
+                            .message("Thanh toán thành công. Đơn hàng đang được xử lý.")
+                            .build();
                 }
+
+                return PaymentReturnDTO.builder()
+                        .success(false)
+                        .message("Không tìm thấy đơn hàng tương ứng hoặc trạng thái không hợp lệ.")
+                        .build();
             }
-            return false; // Thanh toán thất bại theo VNPay
+
+            return PaymentReturnDTO.builder()
+                    .success(false)
+                    .message("Thanh toán VNPay không thành công. Mã phản hồi: " + vnp_ResponseCode)
+                    .build();
 
         } catch (Exception e) {
-            throw new RuntimeException("Error processing VNPay return: " + e.getMessage());
+            return PaymentReturnDTO.builder()
+                    .success(false)
+                    .message("Lỗi xử lý VNPay: " + e.getMessage())
+                    .build();
         }
+    }
+
+    public String buildClientRedirectUrl(PaymentReturnDTO result) {
+        String status = result.isSuccess() ? "success" : "failed";
+        String orderIdParam = result.getOrderId() != null ? result.getOrderId().toString() : "";
+        String messageParam = URLEncoder.encode(
+                Optional.ofNullable(result.getMessage()).orElse(""),
+                StandardCharsets.UTF_8);
+
+        return String.format("%s/payment-result?status=%s&orderId=%s&message=%s",
+                frontendBaseUrl,
+                status,
+                orderIdParam,
+                messageParam);
     }
 }
