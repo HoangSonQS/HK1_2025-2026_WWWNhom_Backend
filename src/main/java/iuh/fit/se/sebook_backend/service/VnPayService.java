@@ -34,8 +34,11 @@ public class VnPayService {
 
     private final OrderRepository orderRepository;
 
-    public VnPayService(OrderRepository orderRepository) {
+    private final OrderService orderService;
+
+    public VnPayService(OrderRepository orderRepository, OrderService orderService) {
         this.orderRepository = orderRepository;
+        this.orderService = orderService;
     }
 
     @PostConstruct
@@ -174,6 +177,8 @@ public class VnPayService {
                     // Cập nhật trạng thái đơn hàng
                     order.setStatus(Order.PROCESSING); // Hoặc "PAID" tùy logic
                     orderRepository.save(order);
+                    // Gửi email xác nhận sau khi thanh toán thành công
+                    orderService.sendOrderConfirmationEmail(order);
 
                     return PaymentReturnDTO.builder()
                             .success(true)

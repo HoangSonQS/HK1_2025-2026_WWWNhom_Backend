@@ -1,0 +1,14 @@
+package iuh.fit.se.sebook_backend.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+@AllArgsConstructor
+public class InventorySummaryDTO {
+    private long totalQuantity;
+    private double totalValue;
+}
+

@@ -1,5 +1,6 @@
 package iuh.fit.se.sebook_backend.controller;
 
+import iuh.fit.se.sebook_backend.dto.BookImportHistoryDTO;
 import iuh.fit.se.sebook_backend.dto.ImportStockRequestDTO;
 import iuh.fit.se.sebook_backend.dto.ImportStockResponseDTO;
 import iuh.fit.se.sebook_backend.service.ImportStockService;
@@ -25,5 +26,10 @@ public class ImportStockController {
     @GetMapping
     public ResponseEntity<List<ImportStockResponseDTO>> getAllImportStocks() {
         return ResponseEntity.ok(importStockService.getAllImportStocks());
+    }
+
+    @GetMapping("/books/{bookId}/history")
+    public ResponseEntity<List<BookImportHistoryDTO>> getImportHistoryByBookId(@PathVariable Long bookId) {
+        return ResponseEntity.ok(importStockService.getImportHistoryByBookId(bookId));
     }
 }

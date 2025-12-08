@@ -130,7 +130,10 @@ public class OrderService {
 
         cartRepository.deleteAll(cartItems);
 
-        sendOrderConfirmationEmail(currentUser, savedOrder);
+        // Gửi email ngay với phương thức thanh toán không phải VNPAY
+        if (!"VNPAY".equalsIgnoreCase(order.getPaymentMethod())) {
+            sendOrderConfirmationEmail(savedOrder);
+        }
 
         // Tạo thông báo khi đặt hàng thành công
         String title = "Đơn hàng #" + savedOrder.getId() + " đã được tạo";
@@ -151,12 +154,16 @@ public class OrderService {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found with id: " + orderId));
 
-        // Kiểm tra xem user có phải admin không
         boolean isAdmin = currentUser.getRoles().stream()
                 .anyMatch(role -> role.getName().equalsIgnoreCase("admin"));
+        boolean isSellerStaff = currentUser.getRoles().stream()
+                .anyMatch(role -> role.getName().equalsIgnoreCase("seller_staff"));
+        boolean isWarehouseStaff = currentUser.getRoles().stream()
+                .anyMatch(role -> role.getName().equalsIgnoreCase("warehouse_staff"));
 
-        // Nếu không phải admin, chỉ cho phép xem đơn hàng của chính mình
-        if (!isAdmin && !order.getAccount().getId().equals(currentUser.getId())) {
+        // Admin hoặc Staff (seller/warehouse) được xem tất cả. Người dùng thường chỉ xem đơn của mình.
+        if (!isAdmin && !isSellerStaff && !isWarehouseStaff
+                && !order.getAccount().getId().equals(currentUser.getId())) {
             throw new IllegalStateException("You don't have permission to view this order");
         }
 
@@ -184,16 +191,17 @@ public class OrderService {
             return toDto(order);
         }
 
-        // Không cho phép cập nhật trạng thái nếu đơn đã bị hủy, đã hoàn thành hoặc đã
-        // trả lại
+        // Không cho phép cập nhật nếu đã hủy hoặc đã trả lại
         if (oldStatus.equals(Order.CANCELLED)) {
             throw new IllegalStateException("Không thể cập nhật trạng thái đơn hàng đã bị hủy");
         }
-        if (oldStatus.equals(Order.COMPLETED)) {
-            throw new IllegalStateException("Không thể cập nhật trạng thái đơn hàng đã hoàn thành");
-        }
         if (oldStatus.equals(Order.RETURNED)) {
             throw new IllegalStateException("Không thể cập nhật trạng thái đơn hàng đã trả lại");
+        }
+
+        // Cho phép chuyển từ COMPLETED -> RETURNED (xử lý hoàn/đổi), chặn các chuyển đổi khác từ COMPLETED
+        if (oldStatus.equals(Order.COMPLETED) && !newStatus.equals(Order.RETURNED)) {
+            throw new IllegalStateException("Không thể cập nhật trạng thái đơn hàng đã hoàn thành");
         }
 
         // Kiểm tra logic chuyển đổi trạng thái hợp lệ (tùy chọn, có thể thêm sau)
@@ -317,7 +325,7 @@ public class OrderService {
         return toDto(updatedOrder);
     }
 
-    private void returnInventory(Order order) {
+    public void returnInventory(Order order) {
         for (OrderDetail detail : order.getOrderDetails()) {
             Book book = detail.getBook();
             int quantityToReturn = detail.getQuantity();
@@ -404,7 +412,8 @@ public class OrderService {
                 .build();
     }
 
-    private void sendOrderConfirmationEmail(Account account, Order order) {
+    public void sendOrderConfirmationEmail(Order order) {
+        Account account = order.getAccount();
         String subject = "Xác nhận đơn hàng #" + order.getId() + " tại SEBook";
         StringBuilder body = new StringBuilder();
         body.append("<h1>Cảm ơn bạn đã đặt hàng tại SEBook!</h1>");
@@ -426,7 +435,17 @@ public class OrderService {
             body.append("</tr>");
         }
         body.append("</tbody></table>");
-        body.append("<p style='text-align:right; font-weight:bold;'>Tổng cộng: ")
+        double subtotal = order.getOrderDetails().stream()
+                .mapToDouble(d -> d.getPriceAtPurchase() * d.getQuantity())
+                .sum();
+        double discountAmount = subtotal - order.getTotalAmount();
+        body.append("<p style='text-align:right; margin:4px 0;'>Tạm tính: ")
+                .append(String.format("%,.0f", subtotal)).append(" đ</p>");
+        if (discountAmount > 0) {
+            body.append("<p style='text-align:right; margin:4px 0;'>Giảm giá: -")
+                    .append(String.format("%,.0f", discountAmount)).append(" đ</p>");
+        }
+        body.append("<p style='text-align:right; font-weight:bold;'>Thanh toán: ")
                 .append(String.format("%,.0f", order.getTotalAmount())).append(" đ</p>");
         body.append("<p>Trân trọng,<br/>Đội ngũ SEBook</p>");
 

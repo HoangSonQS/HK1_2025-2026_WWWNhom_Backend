@@ -10,8 +10,8 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.Set;
 
@@ -21,16 +21,19 @@ public class ApplicationInitConfig {
     private final AccountRepository accountRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final TransactionTemplate transactionTemplate;
 
     @PersistenceContext
     private EntityManager entityManager;
 
     public ApplicationInitConfig(AccountRepository accountRepository,
                                  RoleRepository roleRepository,
-                                 PasswordEncoder passwordEncoder) {
+                                 PasswordEncoder passwordEncoder,
+                                 TransactionTemplate transactionTemplate) {
         this.accountRepository = accountRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
+        this.transactionTemplate = transactionTemplate;
     }
 
     @Bean
@@ -39,6 +42,9 @@ public class ApplicationInitConfig {
         return args -> {
             // Reset sequence để tránh conflict với dữ liệu đã có
             resetSequenceIfNeeded();
+
+            // Migration: Cập nhật status cho promotions có status = NULL
+            migratePromotionStatus();
 
             // Tạo các quyền - tìm theo tên đúng với database (case-insensitive)
             Role adminRole = createRoleIfNotFound("admin", "ADMIN");
@@ -52,6 +58,54 @@ public class ApplicationInitConfig {
             createAccountIfNotFound("warehouse", "warehouse@sebook.com", "warehouse123", Set.of(warehouseStaffRole));
             createAccountIfNotFound("customer", "customer@sebook.com", "customer123", Set.of(customerRole));
         };
+    }
+
+    private void migratePromotionStatus() {
+        try {
+            // Sử dụng TransactionTemplate để thực thi trong transaction riêng
+            transactionTemplate.executeWithoutResult(status -> {
+                try {
+                    // Kiểm tra xem bảng promotions có tồn tại không
+                    Object tableExistsObj = entityManager.createNativeQuery(
+                            "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'promotions')"
+                    ).getSingleResult();
+                    boolean tableExists = Boolean.parseBoolean(tableExistsObj.toString());
+                    
+                    if (!tableExists) {
+                        System.out.println("ℹ️ Table 'promotions' does not exist yet, skipping migration");
+                        return;
+                    }
+                    
+                    // Kiểm tra xem cột status có tồn tại không
+                    Object columnExistsObj = entityManager.createNativeQuery(
+                            "SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'promotions' AND column_name = 'status')"
+                    ).getSingleResult();
+                    boolean columnExists = Boolean.parseBoolean(columnExistsObj.toString());
+                    
+                    if (!columnExists) {
+                        System.out.println("ℹ️ Column 'status' does not exist yet, skipping migration");
+                        return;
+                    }
+                    
+                    // Cập nhật các dòng có status = NULL thành "PENDING"
+                    int updatedRows = entityManager.createNativeQuery(
+                            "UPDATE promotions SET status = 'PENDING' WHERE status IS NULL"
+                    ).executeUpdate();
+                    
+                    if (updatedRows > 0) {
+                        System.out.println("✅ Migrated " + updatedRows + " promotion(s) with NULL status to 'PENDING'");
+                    } else {
+                        System.out.println("ℹ️ No promotions with NULL status found, migration not needed");
+                    }
+                } catch (Exception e) {
+                    System.out.println("⚠️ Error during promotion status migration: " + e.getMessage());
+                    // Không throw exception để không rollback toàn bộ transaction
+                }
+            });
+        } catch (Exception e) {
+            // Nếu bảng chưa tồn tại hoặc có lỗi, bỏ qua (không ảnh hưởng đến logic chính)
+            System.out.println("⚠️ Could not migrate promotion status (this is normal if table doesn't exist): " + e.getMessage());
+        }
     }
 
     private void resetSequenceIfNeeded() {
