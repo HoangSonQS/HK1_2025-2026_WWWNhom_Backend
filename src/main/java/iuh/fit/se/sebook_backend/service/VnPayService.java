@@ -26,6 +26,9 @@ public class VnPayService {
     @Value("${vnpay.hashsecret}")
     private String vnp_HashSecret;
 
+    @Value("${vnpay.pay-url}")
+    private String vnp_PayUrl;
+
     @Value("${vnpay.return-url}")
     private String vnp_ReturnUrl;
 
@@ -42,7 +45,16 @@ public class VnPayService {
     public void initConfig() {
         VnPayConfig.VNP_TMNCODE = this.vnp_TmnCode;
         VnPayConfig.VNP_HASHSECRET = this.vnp_HashSecret;
+        VnPayConfig.VNP_PAYURL = this.vnp_PayUrl;
         VnPayConfig.VNP_RETURNURL = this.vnp_ReturnUrl;
+        
+        // Log để kiểm tra cấu hình
+        System.out.println("=== VNPAY Configuration ===");
+        System.out.println("TMNCode: " + (vnp_TmnCode != null ? vnp_TmnCode : "NULL"));
+        System.out.println("HashSecret: " + (vnp_HashSecret != null && !vnp_HashSecret.isEmpty() ? "***SET***" : "NULL"));
+        System.out.println("Pay URL: " + vnp_PayUrl);
+        System.out.println("Return URL: " + vnp_ReturnUrl);
+        System.out.println("===========================");
     }
 
     @Transactional
@@ -55,8 +67,16 @@ public class VnPayService {
             throw new IllegalStateException("Order is not in PENDING state, cannot create payment.");
         }
 
-        // Tạo mã giao dịch (vnp_TxnRef) duy nhất
-        String vnp_TxnRef = VnPayConfig.getRandomNumber(8);
+        // Tạo mã giao dịch (vnp_TxnRef) duy nhất - kết hợp orderId + timestamp để dễ trace
+        // Format: ORDER{orderId}_{timestamp} (tối đa 50 ký tự theo VNPAY)
+        Calendar cld = Calendar.getInstance(TimeZone.getTimeZone("Etc/GMT+7"));
+        SimpleDateFormat txnRefFormatter = new SimpleDateFormat("yyyyMMddHHmmss");
+        String timestamp = txnRefFormatter.format(cld.getTime());
+        String vnp_TxnRef = String.format("ORDER%d_%s", order.getId(), timestamp);
+        // Đảm bảo không vượt quá 50 ký tự
+        if (vnp_TxnRef.length() > 50) {
+            vnp_TxnRef = vnp_TxnRef.substring(0, 50);
+        }
 
         // Cập nhật mã này vào đơn hàng để đối soát khi VNPay gọi lại
         order.setPaymentCode(vnp_TxnRef);
@@ -64,6 +84,16 @@ public class VnPayService {
 
         // Số tiền (VNPay yêu cầu nhân 100)
         long amount = (long) (order.getTotalAmount() * 100);
+        if (amount <= 0) {
+            throw new IllegalArgumentException("Order amount must be greater than 0");
+        }
+
+        // Lấy IP address
+        String ipAddr = VnPayConfig.getIpAddress(httpServletRequest);
+        // Nếu là localhost, dùng IP mặc định cho sandbox
+        if (ipAddr == null || ipAddr.startsWith("127.0.0.1") || ipAddr.startsWith("0:0:0:0:0:0:0:1") || ipAddr.contains("localhost")) {
+            ipAddr = "127.0.0.1"; // IP mặc định cho localhost
+        }
 
         Map<String, String> vnp_Params = new HashMap<>();
         vnp_Params.put("vnp_Version", "2.1.0");
@@ -76,10 +106,9 @@ public class VnPayService {
         vnp_Params.put("vnp_OrderType", "other");
         vnp_Params.put("vnp_Locale", "vn");
         vnp_Params.put("vnp_ReturnUrl", VnPayConfig.VNP_RETURNURL);
-        vnp_Params.put("vnp_IpAddr", VnPayConfig.getIpAddress(httpServletRequest));
+        vnp_Params.put("vnp_IpAddr", ipAddr);
 
         // Cài đặt thời gian
-        Calendar cld = Calendar.getInstance(TimeZone.getTimeZone("Etc/GMT+7"));
         SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
         String vnp_CreateDate = formatter.format(cld.getTime());
         vnp_Params.put("vnp_CreateDate", vnp_CreateDate);
@@ -116,6 +145,15 @@ public class VnPayService {
         String vnp_SecureHash = VnPayConfig.hmacSHA512(vnp_HashSecret, hashData.toString());
         queryUrl += "&vnp_SecureHash=" + vnp_SecureHash;
         String paymentUrl = VnPayConfig.VNP_PAYURL + "?" + queryUrl;
+
+        // Log để debug
+        System.out.println("=== VNPAY Payment Request ===");
+        System.out.println("Order ID: " + order.getId());
+        System.out.println("TxnRef: " + vnp_TxnRef);
+        System.out.println("Amount: " + amount + " VND");
+        System.out.println("Return URL: " + VnPayConfig.VNP_RETURNURL);
+        System.out.println("Payment URL: " + paymentUrl);
+        System.out.println("=============================");
 
         return new PaymentResponseDTO(paymentUrl);
     }

@@ -11,8 +11,8 @@ import java.util.Random;
 
 public class VnPayConfig {
 
-    // Các URL của VNPay (sandbox)
-    public static String VNP_PAYURL = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
+    // Các URL của VNPay (sẽ được load từ cấu hình)
+    public static String VNP_PAYURL; // URL thanh toán sẽ lấy từ cấu hình
     public static String VNP_RETURNURL; // Đường dẫn callback sẽ lấy từ cấu hình
     public static String VNP_APIURL = "https://sandbox.vnpayment.vn/merchant_webapi/api/transaction";
 

@@ -1,6 +1,7 @@
 package iuh.fit.se.sebook_backend.controller;
 
 import iuh.fit.se.sebook_backend.dto.DashboardSummaryDTO;
+import iuh.fit.se.sebook_backend.dto.MonthlyStatsDTO;
 import iuh.fit.se.sebook_backend.dto.TopSellingProductDTO;
 import iuh.fit.se.sebook_backend.service.DashboardService;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,12 @@ public class DashboardController {
     @GetMapping("/summary")
     public ResponseEntity<DashboardSummaryDTO> getDashboardSummary() {
         return ResponseEntity.ok(dashboardService.getDashboardSummary());
+    }
+
+    @GetMapping("/monthly")
+    public ResponseEntity<List<MonthlyStatsDTO>> getMonthlyStats(Integer months, Integer year) {
+        int limit = (months == null) ? 12 : months;
+        return ResponseEntity.ok(dashboardService.getMonthlyStats(limit, year));
     }
 
     @GetMapping("/top-products")

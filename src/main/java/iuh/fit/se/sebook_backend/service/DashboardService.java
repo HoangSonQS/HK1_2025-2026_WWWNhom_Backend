@@ -1,6 +1,7 @@
 package iuh.fit.se.sebook_backend.service;
 
 import iuh.fit.se.sebook_backend.dto.DashboardSummaryDTO;
+import iuh.fit.se.sebook_backend.dto.MonthlyStatsDTO;
 import iuh.fit.se.sebook_backend.dto.TopSellingProductDTO;
 import iuh.fit.se.sebook_backend.entity.Order;
 import iuh.fit.se.sebook_backend.repository.AccountRepository;
@@ -12,8 +13,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
+import java.time.YearMonth;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -81,6 +85,65 @@ public class DashboardService {
                 .revenueChangePercent(revenueChangePercent)
                 .ordersChangePercent(ordersChangePercent)
                 .build();
+    }
+
+    /**
+     * Lấy thống kê theo tháng (mặc định 12 tháng gần nhất) chỉ tính đơn COMPLETED
+     */
+    public List<MonthlyStatsDTO> getMonthlyStats(int months, Integer year) {
+        int safeMonths = months <= 0 ? 12 : Math.min(months, 36); // giới hạn để tránh tải lớn
+
+        LocalDateTime start;
+        LocalDateTime end;
+
+        if (year != null && year > 0) {
+            // Lấy đủ 12 tháng của năm được chọn
+            start = YearMonth.of(year, 1).atDay(1).atStartOfDay();
+            end = YearMonth.of(year + 1, 1).atDay(1).atStartOfDay();
+            safeMonths = 12;
+        } else {
+            LocalDate now = LocalDate.now();
+            start = now.withDayOfMonth(1).minusMonths(safeMonths - 1).atStartOfDay();
+            end = now.plusMonths(1).withDayOfMonth(1).atStartOfDay();
+        }
+
+        List<Order> orders = orderRepository.findByStatusAndDateRange(Order.COMPLETED, start, end);
+
+        Map<YearMonth, MonthlyStatsDTO> grouped = orders.stream()
+                .collect(Collectors.groupingBy(
+                        o -> YearMonth.from(o.getOrderDate()),
+                        Collectors.collectingAndThen(
+                                Collectors.toList(),
+                                list -> {
+                                    double revenue = list.stream().mapToDouble(Order::getTotalAmount).sum();
+                                    long count = list.size();
+                                    YearMonth ym = YearMonth.from(list.get(0).getOrderDate());
+                                    return MonthlyStatsDTO.builder()
+                                            .year(ym.getYear())
+                                            .month(ym.getMonthValue())
+                                            .revenue(revenue)
+                                            .orders(count)
+                                            .build();
+                                }
+                        )
+                ));
+
+        // Đảm bảo đủ tháng (kể cả không có dữ liệu)
+        YearMonth current = (year != null && year > 0) ? YearMonth.of(year, 12) : YearMonth.now();
+        for (int i = 0; i < safeMonths; i++) {
+            YearMonth ym = current.minusMonths(i);
+            grouped.putIfAbsent(ym, MonthlyStatsDTO.builder()
+                    .year(ym.getYear())
+                    .month(ym.getMonthValue())
+                    .revenue(0)
+                    .orders(0)
+                    .build());
+        }
+
+        return grouped.values().stream()
+                .sorted(Comparator.comparing(MonthlyStatsDTO::getYear)
+                        .thenComparing(MonthlyStatsDTO::getMonth))
+                .collect(Collectors.toList());
     }
 
     /**

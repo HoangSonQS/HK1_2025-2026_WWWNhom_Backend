@@ -40,4 +40,28 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
      */
     @Query("SELECT COUNT(o) FROM Order o WHERE o.status = :status AND o.orderDate >= :startDate AND o.orderDate < :endDate")
     long countByStatusAndDateRange(String status, LocalDateTime startDate, LocalDateTime endDate);
+
+    /**
+     * Tính tổng doanh thu cho nhiều trạng thái trong khoảng thời gian
+     */
+    @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.status IN :statuses AND o.orderDate >= :startDate AND o.orderDate < :endDate")
+    double sumTotalAmountByStatusesAndDateRange(@Param("statuses") List<String> statuses,
+                                                @Param("startDate") LocalDateTime startDate,
+                                                @Param("endDate") LocalDateTime endDate);
+
+    /**
+     * Đếm số đơn hàng cho nhiều trạng thái trong khoảng thời gian
+     */
+    @Query("SELECT COUNT(o) FROM Order o WHERE o.status IN :statuses AND o.orderDate >= :startDate AND o.orderDate < :endDate")
+    long countByStatusesAndDateRange(@Param("statuses") List<String> statuses,
+                                     @Param("startDate") LocalDateTime startDate,
+                                     @Param("endDate") LocalDateTime endDate);
+
+    /**
+     * Lấy danh sách đơn hàng theo trạng thái và khoảng thời gian
+     */
+    @Query("SELECT o FROM Order o WHERE o.status = :status AND o.orderDate >= :startDate AND o.orderDate < :endDate")
+    List<Order> findByStatusAndDateRange(@Param("status") String status,
+                                         @Param("startDate") LocalDateTime startDate,
+                                         @Param("endDate") LocalDateTime endDate);
 }
