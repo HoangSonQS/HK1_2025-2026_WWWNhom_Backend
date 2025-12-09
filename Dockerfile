@@ -24,7 +24,7 @@ FROM eclipse-temurin:17-jdk
 WORKDIR /app
 
 # Copy WAR file from build stage
-COPY --from=build /app/target/*.war HaiTeBooks_Backend.war
+COPY --from=build /app/target/SEBook_Backend-0.0.1-SNAPSHOT.war SEBook_Backend.war
 
 RUN mkdir -p /app/uploads
 VOLUME ["/app/uploads"]
