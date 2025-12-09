@@ -51,6 +51,9 @@ public class AuthService {
     @Value("${jwt.valid-duration}")
     private long VALID_DURATION; // 1800 giây (30 phút)
 
+    @Value("${app.frontend.url}")
+    private String frontendBaseUrl;
+
     @Autowired
     private RefreshTokenService refreshTokenService;
 
@@ -216,7 +219,7 @@ public class AuthService {
 
         // Gửi email
         String subject = "Đặt lại mật khẩu SEBook";
-        String resetLink = "http://localhost:5173/password/reset?token=" + resetToken.getToken() + "&username=" + account.getUsername();
+        String resetLink = frontendBaseUrl + "/password/reset?token=" + resetToken.getToken() + "&username=" + account.getUsername();
         String body = "<h1>Đặt lại mật khẩu</h1>" +
                 "<p>Xin chào " + account.getUsername() + ",</p>" +
                 "<p>Bạn đã yêu cầu đặt lại mật khẩu. Vui lòng click vào link sau để đặt lại mật khẩu:</p>" +

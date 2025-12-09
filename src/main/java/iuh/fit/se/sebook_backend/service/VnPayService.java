@@ -29,7 +29,7 @@ public class VnPayService {
     @Value("${vnpay.return-url}")
     private String vnp_ReturnUrl;
 
-    @Value("${app.frontend.url:http://localhost:5173}")
+    @Value("${app.frontend.url}")
     private String frontendBaseUrl;
 
     private final OrderRepository orderRepository;
