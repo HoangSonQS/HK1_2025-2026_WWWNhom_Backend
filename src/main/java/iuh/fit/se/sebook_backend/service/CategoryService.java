@@ -4,7 +4,9 @@ import iuh.fit.se.sebook_backend.dto.CategoryDTO;
 import iuh.fit.se.sebook_backend.entity.Category;
 import iuh.fit.se.sebook_backend.repository.CategoryRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -15,8 +17,24 @@ public class CategoryService {
     @Autowired
     private CategoryRepository categoryRepository;
 
+    @Transactional
     public CategoryDTO createCategory(CategoryDTO categoryDTO) {
+        try {
+            return saveNewCategory(categoryDTO);
+        } catch (DataIntegrityViolationException ex) {
+            // Đồng bộ sequence rồi thử lại một lần
+            categoryRepository.syncCategoryIdSequence();
+            try {
+                return saveNewCategory(categoryDTO);
+            } catch (DataIntegrityViolationException ex2) {
+                throw new IllegalStateException("Không thể tạo thể loại (trùng tên hoặc khóa chính)", ex2);
+            }
+        }
+    }
+
+    private CategoryDTO saveNewCategory(CategoryDTO categoryDTO) {
         Category category = new Category();
+        category.setId(null);
         category.setName(categoryDTO.getName());
         Category savedCategory = categoryRepository.save(category);
         return toDto(savedCategory);

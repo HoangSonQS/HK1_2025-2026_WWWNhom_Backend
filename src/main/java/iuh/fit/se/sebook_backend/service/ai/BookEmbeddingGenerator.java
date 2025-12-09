@@ -201,7 +201,9 @@ public class BookEmbeddingGenerator {
      */
     @Transactional
     private void saveEmbedding(Book book, List<Double> embedding) {
-        BookEmbedding bookEmbedding = new BookEmbedding();
+        // Upsert để tránh vi phạm unique (book_id)
+        var existingOpt = embeddingRepository.findByBookId(book.getId());
+        BookEmbedding bookEmbedding = existingOpt.orElseGet(BookEmbedding::new);
         bookEmbedding.setBook(book);
         bookEmbedding.setEmbeddingVector(embedding);
         embeddingRepository.save(bookEmbedding);

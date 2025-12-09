@@ -3,7 +3,6 @@ package iuh.fit.se.sebook_backend.repository;
 import iuh.fit.se.sebook_backend.entity.Account;
 import iuh.fit.se.sebook_backend.entity.RefreshToken;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,5 +13,6 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     Optional<RefreshToken> findByToken(String token);
 
-    Optional<RefreshToken> findByAccount(Account account);
+    @Transactional
+    void deleteByAccount(Account account);
 }

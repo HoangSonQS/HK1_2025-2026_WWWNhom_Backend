@@ -7,8 +7,10 @@ import iuh.fit.se.sebook_backend.entity.Cart;
 import iuh.fit.se.sebook_backend.repository.BookRepository;
 import iuh.fit.se.sebook_backend.repository.CartRepository;
 import iuh.fit.se.sebook_backend.utils.SecurityUtil;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -37,6 +39,7 @@ public class CartService {
                 .bookImageUrl(cart.getBook().getImageUrl())
                 .bookPrice(cart.getBook().getPrice())
                 .quantity(cart.getQuantity())
+                .bookStockQuantity(cart.getBook().getQuantity())
                 .build()).collect(Collectors.toList());
 
         double totalPrice = items.stream()
@@ -55,7 +58,7 @@ public class CartService {
                 .orElseThrow(() -> new IllegalArgumentException("Book not found"));
 
         if (book.getQuantity() < request.getQuantity()) {
-            throw new IllegalStateException("Not enough stock available");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not enough stock available");
         }
 
         cartRepository.findByAccountIdAndBookId(currentUser.getId(), request.getBookId())
@@ -63,7 +66,7 @@ public class CartService {
                         cartItem -> {
                             int newQuantity = cartItem.getQuantity() + request.getQuantity();
                             if (book.getQuantity() < newQuantity) {
-                                throw new IllegalStateException("Not enough stock available");
+                                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not enough stock available");
                             }
                             cartItem.setQuantity(newQuantity);
                             cartRepository.save(cartItem);
@@ -83,7 +86,7 @@ public class CartService {
                 .orElseThrow(() -> new IllegalArgumentException("Cart item not found"));
 
         if (cartItem.getBook().getQuantity() < request.getQuantity()) {
-            throw new IllegalStateException("Not enough stock available");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Not enough stock available");
         }
         cartItem.setQuantity(request.getQuantity());
         cartRepository.save(cartItem);

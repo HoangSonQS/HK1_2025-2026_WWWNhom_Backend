@@ -1,14 +1,15 @@
 package iuh.fit.se.sebook_backend.service;
 
 import iuh.fit.se.sebook_backend.dto.DashboardSummaryDTO;
+import iuh.fit.se.sebook_backend.dto.InventoryCategoryDTO;
+import iuh.fit.se.sebook_backend.dto.InventorySummaryDTO;
 import iuh.fit.se.sebook_backend.dto.LowStockDTO;
-import iuh.fit.se.sebook_backend.dto.RevenuePointDTO;
-import iuh.fit.se.sebook_backend.dto.StatusCountDTO;
 import iuh.fit.se.sebook_backend.dto.PromotionUsageDTO;
+import iuh.fit.se.sebook_backend.dto.RevenuePointDTO;
+import iuh.fit.se.sebook_backend.dto.ReturnReportDTO;
+import iuh.fit.se.sebook_backend.dto.StatusCountDTO;
 import iuh.fit.se.sebook_backend.dto.TopPromotionCustomerDTO;
 import iuh.fit.se.sebook_backend.dto.TopSellingProductDTO;
-import iuh.fit.se.sebook_backend.dto.InventorySummaryDTO;
-import iuh.fit.se.sebook_backend.dto.InventoryCategoryDTO;
 import iuh.fit.se.sebook_backend.dto.WarehouseSummaryDTO;
 import iuh.fit.se.sebook_backend.entity.Order;
 import iuh.fit.se.sebook_backend.repository.BookRepository;
@@ -127,6 +128,14 @@ public class DashboardService {
         return orderRepository.countStatusInRange(startDt, endDt).stream()
                 .map(row -> new StatusCountDTO((String) row[0], ((Number) row[1]).longValue()))
                 .collect(Collectors.toList());
+    }
+
+    public ReturnReportDTO getReturnSummary(LocalDate start, LocalDate endExclusive) {
+        LocalDateTime startDt = start.atStartOfDay();
+        LocalDateTime endDt = endExclusive.atStartOfDay();
+        long count = orderRepository.countByStatusAndDateRange(Order.RETURNED, startDt, endDt);
+        double total = orderRepository.sumTotalAmountByStatusAndDateRange(Order.RETURNED, startDt, endDt);
+        return new ReturnReportDTO(count, total);
     }
 
     public List<LowStockDTO> getLowStock(int threshold) {
