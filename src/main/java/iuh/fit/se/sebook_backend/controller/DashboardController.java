@@ -5,6 +5,7 @@ import iuh.fit.se.sebook_backend.dto.LowStockDTO;
 import iuh.fit.se.sebook_backend.dto.RevenuePointDTO;
 import iuh.fit.se.sebook_backend.dto.StatusCountDTO;
 import iuh.fit.se.sebook_backend.dto.PromotionUsageDTO;
+import iuh.fit.se.sebook_backend.dto.ReturnReportDTO;
 import iuh.fit.se.sebook_backend.dto.TopPromotionCustomerDTO;
 import iuh.fit.se.sebook_backend.dto.TopSellingProductDTO;
 import iuh.fit.se.sebook_backend.dto.InventorySummaryDTO;
@@ -53,6 +54,14 @@ public class DashboardController {
             @RequestParam("start") String start,
             @RequestParam("end") String endExclusive) {
         return ResponseEntity.ok(dashboardService.getStatusCounts(
+                LocalDate.parse(start), LocalDate.parse(endExclusive)));
+    }
+
+    @GetMapping("/returns")
+    public ResponseEntity<ReturnReportDTO> getReturnSummary(
+            @RequestParam("start") String start,
+            @RequestParam("end") String endExclusive) {
+        return ResponseEntity.ok(dashboardService.getReturnSummary(
                 LocalDate.parse(start), LocalDate.parse(endExclusive)));
     }
 

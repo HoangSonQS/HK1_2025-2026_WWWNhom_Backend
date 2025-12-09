@@ -10,7 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -36,24 +35,14 @@ public class RefreshTokenService {
         Account account = accountRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("Account not found"));
 
-        // Xóa token cũ của người dùng nếu tồn tại
-        Optional<RefreshToken> oldTokenOpt = refreshTokenRepository.findByAccount(account);
+        // Xóa toàn bộ token cũ của người dùng để tránh trùng lặp/NonUniqueResult
+        refreshTokenRepository.deleteByAccount(account);
 
-        RefreshToken refreshToken;
-        if (oldTokenOpt.isPresent()) {
-            // Nếu có token cũ, chỉ cập nhật nó
-            refreshToken = oldTokenOpt.get();
-        } else {
-            // Nếu không, tạo token mới
-            refreshToken = new RefreshToken();
-            refreshToken.setAccount(account);
-        }
-
-        // Cập nhật/Đặt các giá trị mới
+        RefreshToken refreshToken = new RefreshToken();
+        refreshToken.setAccount(account);
         refreshToken.setExpiryDate(Instant.now().plus(REFRESHABLE_DURATION, ChronoUnit.DAYS));
         refreshToken.setToken(UUID.randomUUID().toString());
 
-        // Lưu (cả trường hợp tạo mới và cập nhật)
         return refreshTokenRepository.save(refreshToken);
     }
 

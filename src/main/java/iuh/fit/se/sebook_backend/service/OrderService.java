@@ -204,8 +204,11 @@ public class OrderService {
             throw new IllegalStateException("Không thể cập nhật trạng thái đơn hàng đã hoàn thành");
         }
 
-        // Kiểm tra logic chuyển đổi trạng thái hợp lệ (tùy chọn, có thể thêm sau)
-        // Ví dụ: Không thể chuyển từ COMPLETED sang CANCELLED
+        // Bảo vệ luồng chuyển trạng thái hợp lệ
+        if (!isValidTransition(oldStatus, newStatus)) {
+            throw new IllegalStateException("Chuyển trạng thái không hợp lệ từ " + oldStatus + " sang " + newStatus);
+        }
+
         // Xử lý hoàn kho nếu trạng thái là CANCELLED hoặc RETURNED
         if ((newStatus.equals(Order.CANCELLED) && !oldStatus.equals(Order.CANCELLED)) ||
                 (newStatus.equals(Order.RETURNED) && !oldStatus.equals(Order.RETURNED))) {
@@ -219,6 +222,27 @@ public class OrderService {
         createStatusChangeNotification(updatedOrder, newStatus);
 
         return toDto(updatedOrder);
+    }
+
+    /**
+     * Kiểm tra luồng chuyển trạng thái hợp lệ:
+     * PENDING -> PROCESSING hoặc CANCELLED
+     * PROCESSING -> DELIVERING hoặc CANCELLED
+     * DELIVERING -> COMPLETED hoặc PROCESSING (trả về xử lý khi giao thất bại) hoặc CANCELLED
+     * COMPLETED -> RETURNED (xử lý hoàn/đổi)
+     * CANCELLED/RETURNED -> không cho chuyển tiếp
+     */
+    private boolean isValidTransition(String oldStatus, String newStatus) {
+        return switch (oldStatus) {
+            case Order.PENDING -> newStatus.equals(Order.PROCESSING) || newStatus.equals(Order.CANCELLED);
+            case Order.PROCESSING -> newStatus.equals(Order.DELIVERING) || newStatus.equals(Order.CANCELLED);
+            case Order.DELIVERING -> newStatus.equals(Order.COMPLETED)
+                    || newStatus.equals(Order.PROCESSING)
+                    || newStatus.equals(Order.CANCELLED);
+            case Order.COMPLETED -> newStatus.equals(Order.RETURNED);
+            case Order.CANCELLED, Order.RETURNED -> false;
+            default -> false;
+        };
     }
 
     /**
