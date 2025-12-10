@@ -8,6 +8,7 @@ import iuh.fit.se.sebook_backend.repository.CategoryRepository;
 import iuh.fit.se.sebook_backend.service.ai.EmbeddingAsyncService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
@@ -28,6 +29,9 @@ public class BookService {
     public BookDTO getBookById(Long id) {
         Book book = bookRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Book not found with id: " + id));
+        if (!book.isActive()) {
+            throw new IllegalStateException("Book has been hidden");
+        }
         return toDto(book);
     }
 
@@ -47,6 +51,7 @@ public class BookService {
 
         Set<Category> categories = new HashSet<>(categoryRepository.findAllById(bookDTO.getCategoryIds()));
         book.setCategories(categories);
+        book.setActive(true);
 
         Book savedBook = bookRepository.save(book);
         
@@ -59,12 +64,15 @@ public class BookService {
     }
 
     public List<BookDTO> getAllBooks() {
-        return bookRepository.findAll().stream().map(this::toDto).collect(Collectors.toList());
+        return bookRepository.findByIsActiveTrue().stream().map(this::toDto).collect(Collectors.toList());
     }
 
     public BookDTO updateBook(Long id, BookDTO bookDTO, String imageUrl) {
         Book book = bookRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Book not found with id: " + id));
+        if (!book.isActive()) {
+            throw new IllegalStateException("Book has been hidden");
+        }
 
         book.setTitle(bookDTO.getTitle());
         book.setAuthor(bookDTO.getAuthor());
@@ -99,27 +107,35 @@ public class BookService {
         if (!bookRepository.existsById(id)) {
             throw new IllegalArgumentException("Book not found with id: " + id);
         }
-        bookRepository.deleteById(id);
+        try {
+            Book book = bookRepository.findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("Book not found with id: " + id));
+            book.setActive(false);
+            bookRepository.save(book);
+        } catch (DataIntegrityViolationException ex) {
+            // Phòng trường hợp còn ràng buộc khóa ngoại khác
+            throw new IllegalStateException("Sách đang được tham chiếu, không thể xóa");
+        }
     }
 
     public List<BookDTO> getAllBooksSorted(String sortBy, String order) {
         Sort sort = order.equalsIgnoreCase(Sort.Direction.ASC.name()) ?
                 Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
-        return bookRepository.findAll(sort).stream().map(this::toDto).collect(Collectors.toList());
+        return bookRepository.findByIsActiveTrue(sort).stream().map(this::toDto).collect(Collectors.toList());
     }
 
     public List<BookDTO> searchBooks(String keyword) {
-        return bookRepository.findByTitleContainingIgnoreCaseOrAuthorContainingIgnoreCase(keyword, keyword)
+        return bookRepository.findByTitleContainingIgnoreCaseOrAuthorContainingIgnoreCaseAndIsActiveTrue(keyword, keyword)
                 .stream().map(this::toDto).collect(Collectors.toList());
     }
 
     public List<BookDTO> filterBooksByCategory(Long categoryId) {
-        return bookRepository.findByCategories_Id(categoryId)
+        return bookRepository.findByCategories_IdAndIsActiveTrue(categoryId)
                 .stream().map(this::toDto).collect(Collectors.toList());
     }
 
     public List<BookDTO> getBooksByCategoryWithLimit(Long categoryId, int limit) {
-        return bookRepository.findByCategories_Id(categoryId)
+        return bookRepository.findByCategories_IdAndIsActiveTrue(categoryId)
                 .stream()
                 .limit(limit)
                 .map(this::toDto)

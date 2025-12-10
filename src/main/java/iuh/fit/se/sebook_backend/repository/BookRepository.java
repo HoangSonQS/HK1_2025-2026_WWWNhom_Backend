@@ -11,9 +11,12 @@ import java.util.List;
 
 @Repository
 public interface BookRepository extends JpaRepository<Book, Long> {
-    List<Book> findByTitleContainingIgnoreCaseOrAuthorContainingIgnoreCase(String title, String author);
+    List<Book> findByIsActiveTrue();
+    List<Book> findByIsActiveTrue(org.springframework.data.domain.Sort sort);
 
-    List<Book> findByCategories_Id(Long categoryId);
+    List<Book> findByTitleContainingIgnoreCaseOrAuthorContainingIgnoreCaseAndIsActiveTrue(String title, String author);
+
+    List<Book> findByCategories_IdAndIsActiveTrue(Long categoryId);
 
     @Query("SELECT b FROM Book b WHERE b.quantity <= :threshold ORDER BY b.quantity ASC")
     List<Book> findLowStock(@Param("threshold") int threshold);
