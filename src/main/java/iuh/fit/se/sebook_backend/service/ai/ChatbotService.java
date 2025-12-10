@@ -8,10 +8,10 @@ import iuh.fit.se.sebook_backend.entity.Address;
 import iuh.fit.se.sebook_backend.entity.Book;
 import iuh.fit.se.sebook_backend.entity.Order;
 import iuh.fit.se.sebook_backend.entity.OrderDetail;
-import iuh.fit.se.sebook_backend.repository.AccountRepository;
 import iuh.fit.se.sebook_backend.repository.BookRepository;
 import iuh.fit.se.sebook_backend.repository.OrderRepository;
 import iuh.fit.se.sebook_backend.service.OrderService;
+import iuh.fit.se.sebook_backend.utils.SecurityUtil;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -47,8 +47,7 @@ public class ChatbotService {
     private final OrderService orderService; // reserved
     private final BookSearchService bookSearchService;
     private final OrderRepository orderRepository;
-    @SuppressWarnings("unused")
-    private final AccountRepository accountRepository;
+    private final SecurityUtil securityUtil;
 
     // System prompt cho chatbot
     private static final String SYSTEM_PROMPT = """
@@ -180,13 +179,13 @@ public class ChatbotService {
                          OrderService orderService,
                          BookSearchService bookSearchService,
                          OrderRepository orderRepository,
-                         AccountRepository accountRepository) {
+                         SecurityUtil securityUtil) {
         this.bookRepository = bookRepository;
         this.embeddingService = embeddingService;
         this.orderService = orderService;
         this.bookSearchService = bookSearchService;
         this.orderRepository = orderRepository;
-        this.accountRepository = accountRepository;
+        this.securityUtil = securityUtil;
     }
 
     // Lưu trữ conversation history (in-memory, có thể cải thiện bằng database sau)
@@ -207,6 +206,16 @@ public class ChatbotService {
         }
 
         try {
+            // Xác định account đang đăng nhập (ưu tiên tham số accountId, fallback từ SecurityContext)
+            Long targetAccountId = accountId;
+            if (targetAccountId == null) {
+                try {
+                    targetAccountId = securityUtil.getLoggedInAccount().getId();
+                } catch (Exception ex) {
+                    log.warn("⚠️ Không lấy được account từ SecurityContext: {}", ex.getMessage());
+                }
+            }
+
             // 1. Tìm kiếm sách liên quan (RAG)
             List<Book> relevantBooks = findRelevantBooks(userMessage);
             log.info("📚 Tìm thấy {} sách liên quan", relevantBooks.size());
@@ -216,8 +225,6 @@ public class ChatbotService {
 
             // 3. Lấy thông tin đơn hàng: chỉ cho người đang đăng nhập
             String orderContext = "";
-            Long targetAccountId = accountId;
-
             if (targetAccountId != null) {
                 int orderCount = getOrderCountByAccountId(targetAccountId);
                 orderContext = buildOrderContext(targetAccountId, userMessage);
