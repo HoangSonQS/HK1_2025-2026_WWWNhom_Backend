@@ -89,8 +89,8 @@ public class BookController {
     }
 
     @GetMapping
-    public ResponseEntity<List<BookDTO>> getAllBooks() {
-        return ResponseEntity.ok(bookService.getAllBooks());
+    public ResponseEntity<List<BookDTO>> getAllBooks(@RequestParam(required = false) Boolean includeInactive) {
+        return ResponseEntity.ok(bookService.getAllBooks(includeInactive));
     }
 
     @GetMapping("/{id}")

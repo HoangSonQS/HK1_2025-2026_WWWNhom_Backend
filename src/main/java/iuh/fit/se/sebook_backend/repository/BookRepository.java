@@ -13,6 +13,7 @@ import java.util.List;
 public interface BookRepository extends JpaRepository<Book, Long> {
     List<Book> findByIsActiveTrue();
     List<Book> findByIsActiveTrue(org.springframework.data.domain.Sort sort);
+    List<Book> findAllByOrderByIdAsc();
 
     List<Book> findByTitleContainingIgnoreCaseOrAuthorContainingIgnoreCaseAndIsActiveTrue(String title, String author);
 

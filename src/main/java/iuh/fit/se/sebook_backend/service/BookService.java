@@ -29,7 +29,8 @@ public class BookService {
     public BookDTO getBookById(Long id) {
         Book book = bookRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Book not found with id: " + id));
-        if (!book.isActive()) {
+        boolean active = book.getIsActive() == null || Boolean.TRUE.equals(book.getIsActive());
+        if (!active) {
             throw new IllegalStateException("Book has been hidden");
         }
         return toDto(book);
@@ -51,7 +52,7 @@ public class BookService {
 
         Set<Category> categories = new HashSet<>(categoryRepository.findAllById(bookDTO.getCategoryIds()));
         book.setCategories(categories);
-        book.setActive(true);
+        book.setIsActive(true);
 
         Book savedBook = bookRepository.save(book);
         
@@ -63,14 +64,17 @@ public class BookService {
         return toDto(savedBook);
     }
 
-    public List<BookDTO> getAllBooks() {
-        return bookRepository.findByIsActiveTrue().stream().map(this::toDto).collect(Collectors.toList());
+    public List<BookDTO> getAllBooks(Boolean includeInactive) {
+        boolean showAll = Boolean.TRUE.equals(includeInactive);
+        List<Book> books = showAll ? bookRepository.findAllByOrderByIdAsc() : bookRepository.findByIsActiveTrue();
+        return books.stream().map(this::toDto).collect(Collectors.toList());
     }
 
     public BookDTO updateBook(Long id, BookDTO bookDTO, String imageUrl) {
         Book book = bookRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Book not found with id: " + id));
-        if (!book.isActive()) {
+        boolean active = book.getIsActive() == null || Boolean.TRUE.equals(book.getIsActive());
+        if (!active) {
             throw new IllegalStateException("Book has been hidden");
         }
 
@@ -110,7 +114,7 @@ public class BookService {
         try {
             Book book = bookRepository.findById(id)
                     .orElseThrow(() -> new IllegalArgumentException("Book not found with id: " + id));
-            book.setActive(false);
+            book.setIsActive(false);
             bookRepository.save(book);
         } catch (DataIntegrityViolationException ex) {
             // Phòng trường hợp còn ràng buộc khóa ngoại khác
