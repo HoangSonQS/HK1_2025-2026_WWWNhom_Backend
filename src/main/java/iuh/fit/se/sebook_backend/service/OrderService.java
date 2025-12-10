@@ -241,6 +241,53 @@ public class OrderService {
         return toDto(updatedOrder);
     }
 
+    public OrderDTO updatePaymentMethod(Long orderId, String newPaymentMethod) {
+        if (newPaymentMethod == null || newPaymentMethod.isBlank()) {
+            throw new IllegalArgumentException("Payment method is required");
+        }
+        String normalized = newPaymentMethod.trim().toUpperCase();
+        if (!normalized.equals("CASH") && !normalized.equals("VNPAY")) {
+            throw new IllegalArgumentException("Unsupported payment method: " + newPaymentMethod);
+        }
+
+        Account currentUser = securityUtil.getLoggedInAccount();
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found with id: " + orderId));
+
+        boolean isAdmin = currentUser.getRoles().stream()
+                .anyMatch(role -> role.getName().equalsIgnoreCase("admin"));
+        boolean isSellerStaff = currentUser.getRoles().stream()
+                .anyMatch(role -> role.getName().equalsIgnoreCase("seller_staff"));
+        boolean isWarehouseStaff = currentUser.getRoles().stream()
+                .anyMatch(role -> role.getName().equalsIgnoreCase("warehouse_staff"));
+        boolean isOwner = order.getAccount().getId().equals(currentUser.getId());
+
+        if (!isAdmin && !isSellerStaff && !isWarehouseStaff && !isOwner) {
+            throw new IllegalStateException("You don't have permission to update payment method for this order");
+        }
+
+        // Chỉ cho đổi khi đơn chưa thanh toán hoặc đang chờ xác nhận
+        if (!order.getStatus().equals(Order.UNPAID) && !order.getStatus().equals(Order.PENDING)) {
+            throw new IllegalStateException("Không thể đổi phương thức với trạng thái hiện tại: " + order.getStatus());
+        }
+
+        order.setPaymentMethod(normalized);
+
+        // Nếu đổi sang COD và đơn đang UNPAID, chuyển sang PENDING để duyệt tiếp
+        if (normalized.equals("CASH") && order.getStatus().equals(Order.UNPAID)) {
+            order.setStatus(Order.PENDING);
+        }
+
+        // Nếu đổi sang VNPAY thì giữ/đặt trạng thái UNPAID để chờ thanh toán
+        if (normalized.equals("VNPAY")) {
+            order.setStatus(Order.UNPAID);
+            order.setPaymentCode(null); // reset payment code, sẽ tạo mới khi gọi tạo payment
+        }
+
+        Order saved = orderRepository.save(order);
+        return toDto(saved);
+    }
+
     /**
      * Kiểm tra luồng chuyển trạng thái hợp lệ:
      * PENDING -> PROCESSING hoặc CANCELLED

@@ -3,6 +3,7 @@ package iuh.fit.se.sebook_backend.controller;
 import iuh.fit.se.sebook_backend.dto.CreateOrderRequest;
 import iuh.fit.se.sebook_backend.dto.OrderDTO;
 import iuh.fit.se.sebook_backend.dto.UpdateOrderStatusRequest;
+import iuh.fit.se.sebook_backend.dto.UpdatePaymentMethodRequest;
 import iuh.fit.se.sebook_backend.service.OrderService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -50,6 +51,13 @@ public class OrderController {
     @PutMapping("/{orderId}/confirm-received")
     public ResponseEntity<OrderDTO> confirmReceived(@PathVariable Long orderId) {
         OrderDTO updatedOrder = orderService.confirmReceivedByCustomer(orderId);
+        return ResponseEntity.ok(updatedOrder);
+    }
+
+    @PutMapping("/{orderId}/payment-method")
+    public ResponseEntity<OrderDTO> updatePaymentMethod(@PathVariable Long orderId,
+                                                        @RequestBody UpdatePaymentMethodRequest request) {
+        OrderDTO updatedOrder = orderService.updatePaymentMethod(orderId, request.getPaymentMethod());
         return ResponseEntity.ok(updatedOrder);
     }
 
