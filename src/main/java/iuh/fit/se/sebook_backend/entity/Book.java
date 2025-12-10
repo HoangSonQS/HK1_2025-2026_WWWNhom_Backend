@@ -20,6 +20,24 @@ public class Book {
     @Column(length = 100, nullable = false)
     private String author;
 
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @Column(name = "publication_year")
+    private Integer publicationYear;
+
+    @Column(name = "weight_grams")
+    private Integer weightGrams;
+
+    @Column(name = "package_dimensions", length = 100)
+    private String packageDimensions;
+
+    @Column(name = "page_count")
+    private Integer pageCount;
+
+    @Column(length = 50)
+    private String format;
+
     private double price;
 
     private int quantity;

@@ -225,6 +225,14 @@ public class BookEmbeddingGenerator {
             }
             text.append(book.getAuthor().trim());
         }
+
+        // Thêm description nếu có
+        if (book.getDescription() != null && !book.getDescription().trim().isEmpty()) {
+            if (text.length() > 0) {
+                text.append(" ");
+            }
+            text.append(book.getDescription().trim());
+        }
         
         // Thêm category names nếu có
         if (book.getCategories() != null && !book.getCategories().isEmpty()) {

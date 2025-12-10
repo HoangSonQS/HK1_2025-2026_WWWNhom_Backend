@@ -35,6 +35,12 @@ public class BookService {
         Book book = new Book();
         book.setTitle(bookDTO.getTitle());
         book.setAuthor(bookDTO.getAuthor());
+        book.setDescription(bookDTO.getDescription());
+        book.setPublicationYear(bookDTO.getPublicationYear());
+        book.setWeightGrams(bookDTO.getWeightGrams());
+        book.setPackageDimensions(bookDTO.getPackageDimensions());
+        book.setPageCount(bookDTO.getPageCount());
+        book.setFormat(bookDTO.getFormat());
         book.setPrice(bookDTO.getPrice());
         book.setQuantity(bookDTO.getQuantity());
         book.setImageUrl(imageUrl);
@@ -62,6 +68,12 @@ public class BookService {
 
         book.setTitle(bookDTO.getTitle());
         book.setAuthor(bookDTO.getAuthor());
+        book.setDescription(bookDTO.getDescription());
+        book.setPublicationYear(bookDTO.getPublicationYear());
+        book.setWeightGrams(bookDTO.getWeightGrams());
+        book.setPackageDimensions(bookDTO.getPackageDimensions());
+        book.setPageCount(bookDTO.getPageCount());
+        book.setFormat(bookDTO.getFormat());
         book.setPrice(bookDTO.getPrice());
         book.setQuantity(bookDTO.getQuantity());
 
@@ -119,6 +131,12 @@ public class BookService {
         dto.setId(book.getId());
         dto.setTitle(book.getTitle());
         dto.setAuthor(book.getAuthor());
+        dto.setDescription(book.getDescription());
+        dto.setPublicationYear(book.getPublicationYear());
+        dto.setWeightGrams(book.getWeightGrams());
+        dto.setPackageDimensions(book.getPackageDimensions());
+        dto.setPageCount(book.getPageCount());
+        dto.setFormat(book.getFormat());
         dto.setPrice(book.getPrice());
         dto.setQuantity(book.getQuantity());
         dto.setImageUrl(book.getImageUrl());
