@@ -84,4 +84,19 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             "GROUP BY o.account.id, o.account.username, o.account.email " +
             "ORDER BY SUM(o.totalAmount) DESC")
     List<Object[]> topCustomersUsingPromotion();
+
+    // Đơn hàng tổng tiền cao/thấp nhất
+    Order findTopByOrderByTotalAmountDesc();
+    Order findTopByOrderByTotalAmountAsc();
+
+    // Đơn hàng có tổng số lượng sản phẩm cao/thấp nhất
+    @Query("SELECT o FROM Order o LEFT JOIN o.orderDetails od " +
+           "GROUP BY o.id " +
+           "ORDER BY COALESCE(SUM(od.quantity),0) DESC")
+    List<Order> findTopByTotalQuantityDesc(org.springframework.data.domain.Pageable pageable);
+
+    @Query("SELECT o FROM Order o LEFT JOIN o.orderDetails od " +
+           "GROUP BY o.id " +
+           "ORDER BY COALESCE(SUM(od.quantity),0) ASC")
+    List<Order> findTopByTotalQuantityAsc(org.springframework.data.domain.Pageable pageable);
 }

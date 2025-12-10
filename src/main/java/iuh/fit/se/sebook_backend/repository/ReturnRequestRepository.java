@@ -12,5 +12,6 @@ public interface ReturnRequestRepository extends JpaRepository<ReturnRequest, Lo
     List<ReturnRequest> findByCreatedByIdOrderByCreatedAtDesc(Long accountId);
     List<ReturnRequest> findAllByOrderByCreatedAtDesc();
     List<ReturnRequest> findByStatusOrderByCreatedAtDesc(ReturnRequestStatus status);
+    boolean existsByOrderId(Long orderId);
 }
 

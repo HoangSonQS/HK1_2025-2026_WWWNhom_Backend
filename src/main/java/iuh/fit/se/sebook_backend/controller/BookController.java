@@ -52,8 +52,14 @@ public class BookController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteBook(@PathVariable Long id) {
-        bookService.deleteBook(id);
-        return ResponseEntity.ok("Book deleted successfully");
+        try {
+            bookService.deleteBook(id);
+            return ResponseEntity.ok("Book deleted successfully");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(409).body(e.getMessage());
+        }
     }
 
     @GetMapping("/search")
@@ -83,8 +89,8 @@ public class BookController {
     }
 
     @GetMapping
-    public ResponseEntity<List<BookDTO>> getAllBooks() {
-        return ResponseEntity.ok(bookService.getAllBooks());
+    public ResponseEntity<List<BookDTO>> getAllBooks(@RequestParam(required = false) Boolean includeInactive) {
+        return ResponseEntity.ok(bookService.getAllBooks(includeInactive));
     }
 
     @GetMapping("/{id}")

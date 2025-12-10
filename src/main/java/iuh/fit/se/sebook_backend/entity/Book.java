@@ -45,6 +45,9 @@ public class Book {
     @Column(name = "image_url")
     private String imageUrl;
 
+    @Column(name = "is_active", columnDefinition = "boolean default true")
+    private Boolean isActive = true;
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "book_categories",
