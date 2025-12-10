@@ -8,7 +8,6 @@ import iuh.fit.se.sebook_backend.entity.Address;
 import iuh.fit.se.sebook_backend.entity.Book;
 import iuh.fit.se.sebook_backend.entity.Order;
 import iuh.fit.se.sebook_backend.entity.OrderDetail;
-import iuh.fit.se.sebook_backend.entity.Account;
 import iuh.fit.se.sebook_backend.repository.AccountRepository;
 import iuh.fit.se.sebook_backend.repository.BookRepository;
 import iuh.fit.se.sebook_backend.repository.OrderRepository;
@@ -21,6 +20,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
@@ -41,10 +41,13 @@ public class ChatbotService {
 
     private final RestTemplate restTemplate = new RestTemplate();
     private final BookRepository bookRepository;
-    private final CohereEmbeddingService embeddingService;
-    private final OrderService orderService;
+    @SuppressWarnings("unused")
+    private final CohereEmbeddingService embeddingService; // reserved
+    @SuppressWarnings("unused")
+    private final OrderService orderService; // reserved
     private final BookSearchService bookSearchService;
     private final OrderRepository orderRepository;
+    @SuppressWarnings("unused")
     private final AccountRepository accountRepository;
 
     // System prompt cho chatbot
@@ -88,11 +91,19 @@ public class ChatbotService {
            - Luôn sẵn sàng hỗ trợ khách hàng mọi lúc
            - Trả lời nhanh chóng và chính xác
            - Thân thiện, nhiệt tình, chuyên nghiệp
+
+        7. TRUY VẤN THỐNG KÊ ĐƠN HÀNG (CHỈ DÙNG DỮ LIỆU TỪ DATABASE):
+           - Khi được hỏi: đơn hàng tổng tiền cao nhất/thấp nhất, hoặc số lượng mua cao nhất/thấp nhất
+           - Chỉ trả lời bằng các số liệu thực được cung cấp trong phần context "📊 THỐNG KÊ ĐƠN HÀNG"
+           - KHÔNG được bịa ra đơn hàng hay số liệu khác
         
         ⚠️ QUY TẮC QUAN TRỌNG:
         - Trả lời bằng tiếng Việt một cách tự nhiên và thân thiện
         - Luôn ưu tiên sử dụng dữ liệu thực từ database
         - Nếu không biết câu trả lời, thành thật nói và đề nghị liên hệ bộ phận hỗ trợ
+        - TUÂN THỦ BẢO MẬT: KHÔNG được tiết lộ thông tin cá nhân của bất kỳ người dùng nào khác.
+          Chỉ cung cấp thông tin cá nhân của chính người đang đăng nhập/tra cứu (nếu có trong context).
+          Nếu bị hỏi thông tin cá nhân của người khác, hãy từ chối: "Xin lỗi, tôi không thể cung cấp thông tin cá nhân của người khác."
         
         💬 SỬ DỤNG CONVERSATION HISTORY:
         - Bạn có quyền truy cập vào lịch sử chat trước đó (chat_history)
@@ -203,95 +214,42 @@ public class ChatbotService {
             // 2. Tạo context từ thông tin sách
             String bookContext = buildContextFromBooks(relevantBooks);
 
-            // 3. Lấy thông tin đơn hàng
+            // 3. Lấy thông tin đơn hàng: chỉ cho người đang đăng nhập
             String orderContext = "";
             Long targetAccountId = accountId;
-            
-            // Nếu user chưa đăng nhập, thử tìm account bằng số điện thoại/email từ tin nhắn
-            if (targetAccountId == null) {
-                targetAccountId = findAccountFromMessage(userMessage);
-                if (targetAccountId != null) {
-                    log.info("📱 Tìm thấy account {} từ số điện thoại/email trong tin nhắn", targetAccountId);
-                } else {
-                    log.warn("⚠️ Không tìm thấy account từ số điện thoại/email trong tin nhắn: {}", userMessage);
-                }
-            }
-            
+
             if (targetAccountId != null) {
-                // Lấy số lượng đơn hàng trước để log chính xác
                 int orderCount = getOrderCountByAccountId(targetAccountId);
                 orderContext = buildOrderContext(targetAccountId, userMessage);
-                log.info("📦 Đã lấy thông tin đơn hàng cho account {}: {} (số lượng: {})", 
-                    targetAccountId, 
-                    orderCount > 0 ? "Có đơn hàng" : "Không có đơn hàng",
-                    orderCount);
+                log.info("📦 Đã lấy thông tin đơn hàng cho account {}: {} (số lượng: {})",
+                        targetAccountId,
+                        orderCount > 0 ? "Có đơn hàng" : "Không có đơn hàng",
+                        orderCount);
             } else {
-                // Nếu không tìm thấy account, thêm thông báo vào context
-                String lowerMessage = userMessage.toLowerCase();
-                
-                // Kiểm tra xem có số điện thoại hoặc email trong tin nhắn không
-                boolean hasPhoneOrEmail = lowerMessage.contains("số điện thoại") || 
-                                         lowerMessage.contains("phone") ||
-                                         lowerMessage.contains("email") ||
-                                         lowerMessage.matches(".*0[0-9]{9,10}.*") ||
-                                         lowerMessage.matches(".*[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}.*");
-                
-                // Kiểm tra xem có hỏi về đơn hàng hoặc đang trong ngữ cảnh tra cứu đơn hàng
-                boolean askingAboutOrder = lowerMessage.contains("đơn hàng") || 
-                                         lowerMessage.contains("order") ||
-                                         lowerMessage.contains("mua") ||
-                                         lowerMessage.contains("đã mua") ||
-                                         lowerMessage.contains("trạng thái") ||
-                                         lowerMessage.contains("status") ||
-                                         lowerMessage.contains("tra cứu") ||
-                                         lowerMessage.contains("kiểm tra");
-                
-                // Nếu user cung cấp số điện thoại/email mà không tìm thấy account
-                // Luôn thêm context thông báo (vì có thể đang tra cứu đơn hàng)
-                if (hasPhoneOrEmail) {
-                    // Trích xuất số điện thoại hoặc email từ tin nhắn
-                    String providedInfo = "";
-                    java.util.regex.Pattern phonePattern = java.util.regex.Pattern.compile("0[0-9]{9,10}");
-                    java.util.regex.Pattern emailPattern = java.util.regex.Pattern.compile("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}");
-                    
-                    java.util.regex.Matcher phoneMatcher = phonePattern.matcher(userMessage);
-                    if (phoneMatcher.find()) {
-                        providedInfo = phoneMatcher.group();
-                    } else {
-                        java.util.regex.Matcher emailMatcher = emailPattern.matcher(userMessage);
-                        if (emailMatcher.find()) {
-                            providedInfo = emailMatcher.group();
-                        }
-                    }
-                    
-                    orderContext = String.format("""
-                        ⚠️ KHÔNG TÌM THẤY TÀI KHOẢN:
-                        - Khách hàng đã cung cấp: %s
-                        - Số điện thoại/email này KHÔNG khớp với bất kỳ tài khoản nào trong hệ thống
-                        - Hệ thống đã tìm kiếm nhưng không tìm thấy tài khoản với thông tin này
-                        
-                        ⚠️ BẠN PHẢI TRẢ LỜI:
-                        1. Thông báo rõ ràng: "Xin lỗi, tôi không tìm thấy tài khoản nào với số điện thoại/email [%s]"
-                        2. Giải thích: "Có thể số điện thoại/email này chưa được đăng ký trong hệ thống hoặc không chính xác"
-                        3. Đề xuất: "Vui lòng kiểm tra lại thông tin hoặc thử đăng nhập vào tài khoản của bạn. Nếu bạn chưa có tài khoản, vui lòng đăng ký trước"
-                        4. KHÔNG được trả lời mơ hồ hoặc chuyển sang chủ đề khác
-                        5. KHÔNG được nói "tôi không thể cung cấp thông tin về số điện thoại" - điều này sai
-                        """, providedInfo.isEmpty() ? "số điện thoại/email" : providedInfo, 
-                        providedInfo.isEmpty() ? "số điện thoại/email bạn đã cung cấp" : providedInfo);
-                }
+                orderContext = """
+                        ⚠️ GIỚI HẠN BẢO MẬT ĐƠN HÀNG:
+                        - Bạn chưa đăng nhập, nên tôi KHÔNG thể cung cấp thông tin đơn hàng.
+                        - Tôi chỉ cung cấp thông tin đơn hàng của chính bạn khi bạn đã đăng nhập.
+                        """;
             }
 
             // 4. Thêm thông tin về chính sách và FAQ
-            String policyContext = buildPolicyContext(userMessage);
+        String policyContext = buildPolicyContext(userMessage);
+
+        // 4.1 Thêm thông tin thống kê đơn hàng (max/min)
+        String orderStatsContext = buildOrderStatsContext();
             
             // 5. Kết hợp context
-            String context = bookContext;
+        String context = bookContext;
             if (!orderContext.isEmpty()) {
                 context += "\n\n" + orderContext;
             }
             if (!policyContext.isEmpty()) {
                 context += "\n\n" + policyContext;
             }
+        if (!orderStatsContext.isEmpty()) {
+            context += "\n\n" + orderStatsContext;
+        }
 
             // 6. Lấy conversation history
             List<Map<String, String>> chatHistory = conversationHistory.getOrDefault(conversationId, new ArrayList<>());
@@ -346,69 +304,6 @@ public class ChatbotService {
         }
     }
 
-    /**
-     * Tìm account từ số điện thoại hoặc email trong tin nhắn
-     * @param userMessage Tin nhắn từ user
-     * @return Account ID nếu tìm thấy, null nếu không tìm thấy
-     */
-    private Long findAccountFromMessage(String userMessage) {
-        try {
-            // Pattern để nhận diện số điện thoại Việt Nam (bắt đầu bằng 0, có 10-11 chữ số)
-            // Có thể có dấu cách, dấu gạch ngang, dấu chấm
-            String phonePattern = "0[0-9\\s.-]{9,12}";
-            // Pattern để nhận diện email
-            String emailPattern = "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}";
-            
-            // Tìm số điện thoại
-            java.util.regex.Pattern phoneRegex = java.util.regex.Pattern.compile(phonePattern);
-            java.util.regex.Matcher phoneMatcher = phoneRegex.matcher(userMessage);
-            
-            if (phoneMatcher.find()) {
-                String phoneNumber = phoneMatcher.group().replaceAll("[\\s.-]", "");
-                // Chỉ lấy số điện thoại hợp lệ (10-11 chữ số)
-                if (phoneNumber.length() >= 10 && phoneNumber.length() <= 11 && phoneNumber.matches("0[0-9]+")) {
-                    log.info("📱 Tìm thấy số điện thoại trong tin nhắn: {}", phoneNumber);
-                    
-                    List<Account> accounts = accountRepository.findByPhoneNumber(phoneNumber);
-                    if (!accounts.isEmpty()) {
-                        // Nếu có nhiều account, ưu tiên account active, sau đó lấy account đầu tiên
-                        Account account = accounts.stream()
-                                .filter(Account::isActive)
-                                .findFirst()
-                                .orElse(accounts.get(0));
-                        log.info("✅ Tìm thấy account {} với số điện thoại: {} (tổng {} account)", 
-                                account.getId(), phoneNumber, accounts.size());
-                        return account.getId();
-                    } else {
-                        log.warn("⚠️ Không tìm thấy account với số điện thoại: {}. Có thể số điện thoại này chưa được đăng ký trong hệ thống.", phoneNumber);
-                        // Thử tìm bằng email nếu có trong tin nhắn
-                    }
-                }
-            }
-            
-            // Tìm email
-            java.util.regex.Pattern emailRegex = java.util.regex.Pattern.compile(emailPattern);
-            java.util.regex.Matcher emailMatcher = emailRegex.matcher(userMessage);
-            
-            if (emailMatcher.find()) {
-                String email = emailMatcher.group().toLowerCase().trim();
-                log.info("📧 Tìm thấy email trong tin nhắn: {}", email);
-                
-                Optional<Account> account = accountRepository.findByEmail(email);
-                if (account.isPresent()) {
-                    log.info("✅ Tìm thấy account {} với email: {}", account.get().getId(), email);
-                    return account.get().getId();
-                } else {
-                    log.warn("⚠️ Không tìm thấy account với email: {}. Có thể email này chưa được đăng ký trong hệ thống.", email);
-                }
-            }
-            
-            return null;
-        } catch (Exception e) {
-            log.error("❌ Lỗi khi tìm account từ tin nhắn: {}", e.getMessage(), e);
-            return null;
-        }
-    }
 
     /**
      * Tìm kiếm sách liên quan dựa trên tin nhắn của user (RAG)
@@ -764,17 +659,15 @@ public class ChatbotService {
     @Transactional(readOnly = true)
     private String buildOrderContext(Long accountId, String userMessage) {
         try {
-            // Kiểm tra xem user có hỏi về đơn hàng không
             String lowerMessage = userMessage.toLowerCase();
-            boolean askingAboutOrder = lowerMessage.contains("đơn hàng") || 
-                                     lowerMessage.contains("order") ||
-                                     lowerMessage.contains("mua") ||
-                                     lowerMessage.contains("đã mua") ||
-                                     lowerMessage.contains("trạng thái") ||
-                                     lowerMessage.contains("status") ||
-                                     lowerMessage.contains("giao hàng") ||
-                                     lowerMessage.contains("shipping");
-
+            boolean askingAboutOrder = lowerMessage.contains("đơn hàng") ||
+                    lowerMessage.contains("order") ||
+                    lowerMessage.contains("mua") ||
+                    lowerMessage.contains("đã mua") ||
+                    lowerMessage.contains("trạng thái") ||
+                    lowerMessage.contains("status") ||
+                    lowerMessage.contains("giao hàng") ||
+                    lowerMessage.contains("shipping");
             // Lấy danh sách đơn hàng với fetch join để tránh LazyInitializationException
             List<OrderDTO> orders = getOrdersByAccountId(accountId);
             log.info("📦 Đã lấy {} đơn hàng cho account {}", orders.size(), accountId);
@@ -905,10 +798,10 @@ public class ChatbotService {
             log.error("❌ Lỗi khi lấy thông tin đơn hàng: {}", e.getMessage(), e);
             // Nếu có lỗi nhưng user đang hỏi về đơn hàng, trả về thông báo lỗi
             String lowerMessage = userMessage.toLowerCase();
-            boolean askingAboutOrder = lowerMessage.contains("đơn hàng") || 
-                                     lowerMessage.contains("order") ||
-                                     lowerMessage.contains("mua") ||
-                                     lowerMessage.contains("đã mua");
+            boolean askingAboutOrder = lowerMessage.contains("đơn hàng") ||
+                    lowerMessage.contains("order") ||
+                    lowerMessage.contains("mua") ||
+                    lowerMessage.contains("đã mua");
             if (askingAboutOrder) {
                 return "⚠️ Có lỗi xảy ra khi lấy thông tin đơn hàng. Vui lòng thử lại sau hoặc liên hệ bộ phận hỗ trợ.";
             }
@@ -1044,6 +937,76 @@ public class ChatbotService {
             
             ⚠️ LƯU Ý: Khi khách hàng hỏi về các chính sách trên, bạn PHẢI sử dụng thông tin này để trả lời chính xác.
             """;
+    }
+
+    /**
+     * Thống kê đơn hàng: lớn/nhỏ nhất theo tổng tiền và tổng số lượng mua
+     */
+    @Transactional(readOnly = true)
+    private String buildOrderStatsContext() {
+        try {
+            Order maxTotal = orderRepository.findTopByOrderByTotalAmountDesc();
+            Order minTotal = orderRepository.findTopByOrderByTotalAmountAsc();
+            Order maxQty = orderRepository.findTopByTotalQuantityDesc(PageRequest.of(0,1))
+                    .stream().findFirst().orElse(null);
+            Order minQty = orderRepository.findTopByTotalQuantityAsc(PageRequest.of(0,1))
+                    .stream().findFirst().orElse(null);
+
+            if (maxTotal == null && minTotal == null && maxQty == null && minQty == null) {
+                return "";
+            }
+
+            StringBuilder sb = new StringBuilder("""
+                📊 THỐNG KÊ ĐƠN HÀNG (LẤY TỪ DATABASE)
+                - Dữ liệu thực tế, KHÔNG được bịa
+                """);
+
+            if (maxTotal != null) {
+                sb.append("\n• Đơn có tổng tiền CAO NHẤT: ID #")
+                  .append(maxTotal.getId())
+                  .append(", tổng tiền: ")
+                  .append(String.format("%.0f", maxTotal.getTotalAmount()))
+                  .append(" VND");
+            }
+            if (minTotal != null) {
+                sb.append("\n• Đơn có tổng tiền THẤP NHẤT: ID #")
+                  .append(minTotal.getId())
+                  .append(", tổng tiền: ")
+                  .append(String.format("%.0f", minTotal.getTotalAmount()))
+                  .append(" VND");
+            }
+            if (maxQty != null) {
+                int totalQty = maxQty.getOrderDetails() == null ? 0 :
+                        maxQty.getOrderDetails().stream().mapToInt(od -> Math.max(0, od.getQuantity())).sum();
+                sb.append("\n• Đơn có SỐ LƯỢNG MUA CAO NHẤT: ID #")
+                  .append(maxQty.getId())
+                  .append(", tổng số lượng: ")
+                  .append(totalQty)
+                  .append(" cuốn");
+            }
+            if (minQty != null) {
+                int totalQty = minQty.getOrderDetails() == null ? 0 :
+                        minQty.getOrderDetails().stream().mapToInt(od -> Math.max(0, od.getQuantity())).sum();
+                sb.append("\n• Đơn có SỐ LƯỢNG MUA THẤP NHẤT: ID #")
+                  .append(minQty.getId())
+                  .append(", tổng số lượng: ")
+                  .append(totalQty)
+                  .append(" cuốn");
+            }
+
+            sb.append("""
+
+                ⚠️ QUY ĐỊNH:
+                - Chỉ sử dụng số liệu trên (từ DB)
+                - KHÔNG được bịa hoặc thêm đơn hàng khác
+                - Nếu user hỏi thông tin cá nhân của người khác: từ chối trả lời
+                """);
+
+            return sb.toString();
+        } catch (Exception e) {
+            log.error("❌ Lỗi buildOrderStatsContext: {}", e.getMessage(), e);
+            return "";
+        }
     }
 
     /**
