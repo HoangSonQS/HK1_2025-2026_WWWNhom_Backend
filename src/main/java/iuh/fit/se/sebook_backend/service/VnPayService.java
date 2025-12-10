@@ -53,9 +53,13 @@ public class VnPayService {
         Order order = orderRepository.findById(request.getOrderId())
                 .orElseThrow(() -> new IllegalArgumentException("Order not found"));
 
-        // Kiểm tra xem đơn hàng đã được thanh toán chưa hoặc đã bị hủy chưa
-        if (!order.getStatus().equals(Order.PENDING)) {
-            throw new IllegalStateException("Order is not in PENDING state, cannot create payment.");
+        if (!"VNPAY".equalsIgnoreCase(order.getPaymentMethod())) {
+            throw new IllegalStateException("Order is not configured for VNPAY payment.");
+        }
+
+        // Chỉ tạo thanh toán khi đơn đang ở trạng thái chưa thanh toán
+        if (!order.getStatus().equals(Order.UNPAID)) {
+            throw new IllegalStateException("Order is not in UNPAID state, cannot create payment.");
         }
 
         // Tạo mã giao dịch (vnp_TxnRef) duy nhất
@@ -173,9 +177,9 @@ public class VnPayService {
                 Order order = orderRepository.findByPaymentCode(vnp_TxnRef)
                         .orElse(null);
 
-                if (order != null && order.getStatus().equals(Order.PENDING)) {
+                if (order != null && (order.getStatus().equals(Order.UNPAID) || order.getStatus().equals(Order.PENDING))) {
                     // Cập nhật trạng thái đơn hàng
-                    order.setStatus(Order.PROCESSING); // Hoặc "PAID" tùy logic
+                    order.setStatus(Order.PENDING); // Đã thanh toán, chờ xác nhận
                     orderRepository.save(order);
                     // Gửi email xác nhận sau khi thanh toán thành công
                     orderService.sendOrderConfirmationEmail(order);
@@ -191,6 +195,14 @@ public class VnPayService {
                         .success(false)
                         .message("Không tìm thấy đơn hàng tương ứng hoặc trạng thái không hợp lệ.")
                         .build();
+            }
+
+            // Thanh toán thất bại hoặc bị hủy: đưa đơn hàng về trạng thái chưa thanh toán, xoá paymentCode
+            Order failedOrder = orderRepository.findByPaymentCode(vnp_TxnRef).orElse(null);
+            if (failedOrder != null) {
+                failedOrder.setStatus(Order.UNPAID);
+                failedOrder.setPaymentCode(null);
+                orderRepository.save(failedOrder);
             }
 
             return PaymentReturnDTO.builder()
