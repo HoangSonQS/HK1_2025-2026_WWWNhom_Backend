@@ -12,7 +12,8 @@ import java.util.List;
 @Setter
 public class Order {
 
-    public static final String PENDING = "PENDING"; // Chờ xác nhận
+    public static final String UNPAID = "UNPAID"; // Chưa thanh toán (đặt VNPay nhưng chưa thanh toán)
+    public static final String PENDING = "PENDING"; // Chờ xác nhận (đã thanh toán VNPay hoặc COD)
     public static final String PROCESSING = "PROCESSING"; // Đang xử lý (đã xác nhận)
     public static final String DELIVERING = "DELIVERING"; // Đang giao
     public static final String COMPLETED = "COMPLETED"; // Đã giao thành công
