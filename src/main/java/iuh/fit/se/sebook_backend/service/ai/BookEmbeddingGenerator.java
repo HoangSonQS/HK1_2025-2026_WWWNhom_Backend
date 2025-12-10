@@ -197,6 +197,29 @@ public class BookEmbeddingGenerator {
     }
 
     /**
+     * Xóa embedding của một cuốn sách
+     * @param bookId ID của sách cần xóa embedding
+     * @return true nếu xóa thành công, false nếu không tìm thấy embedding
+     */
+    @Transactional
+    public boolean deleteEmbeddingForBook(Long bookId) {
+        try {
+            var existingEmbedding = embeddingRepository.findByBookId(bookId);
+            if (existingEmbedding.isPresent()) {
+                embeddingRepository.delete(existingEmbedding.get());
+                log.info("✅ Đã xóa embedding cho sách ID: {}", bookId);
+                return true;
+            } else {
+                log.info("⏭️ Không tìm thấy embedding để xóa cho sách ID: {}", bookId);
+                return false;
+            }
+        } catch (Exception e) {
+            log.error("❌ Lỗi khi xóa embedding cho sách ID {}: {}", bookId, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
      * Lưu embedding vào database với transaction riêng để commit ngay lập tức
      */
     @Transactional

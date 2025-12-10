@@ -116,6 +116,11 @@ public class BookService {
                     .orElseThrow(() -> new IllegalArgumentException("Book not found with id: " + id));
             book.setIsActive(false);
             bookRepository.save(book);
+            
+            // Xóa embedding của sách khi soft delete
+            if (embeddingAsyncService != null) {
+                embeddingAsyncService.deleteEmbeddingForBookAsync(book.getId());
+            }
         } catch (DataIntegrityViolationException ex) {
             // Phòng trường hợp còn ràng buộc khóa ngoại khác
             throw new IllegalStateException("Sách đang được tham chiếu, không thể xóa");
