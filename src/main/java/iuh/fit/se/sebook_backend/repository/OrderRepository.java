@@ -88,14 +88,25 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     // Đơn hàng tổng tiền cao/thấp nhất
     Order findTopByOrderByTotalAmountDesc();
     Order findTopByOrderByTotalAmountAsc();
+    
+    // Fetch Order với orderDetails đã load
+    @Query("SELECT DISTINCT o FROM Order o " +
+           "LEFT JOIN FETCH o.orderDetails od " +
+           "LEFT JOIN FETCH od.book " +
+           "WHERE o.id = :orderId")
+    Optional<Order> findByIdWithDetails(@Param("orderId") Long orderId);
 
     // Đơn hàng có tổng số lượng sản phẩm cao/thấp nhất
-    @Query("SELECT o FROM Order o LEFT JOIN o.orderDetails od " +
+    @Query("SELECT DISTINCT o FROM Order o " +
+           "LEFT JOIN FETCH o.orderDetails od " +
+           "LEFT JOIN FETCH od.book " +
            "GROUP BY o.id " +
            "ORDER BY COALESCE(SUM(od.quantity),0) DESC")
     List<Order> findTopByTotalQuantityDesc(org.springframework.data.domain.Pageable pageable);
 
-    @Query("SELECT o FROM Order o LEFT JOIN o.orderDetails od " +
+    @Query("SELECT DISTINCT o FROM Order o " +
+           "LEFT JOIN FETCH o.orderDetails od " +
+           "LEFT JOIN FETCH od.book " +
            "GROUP BY o.id " +
            "ORDER BY COALESCE(SUM(od.quantity),0) ASC")
     List<Order> findTopByTotalQuantityAsc(org.springframework.data.domain.Pageable pageable);
