@@ -62,5 +62,24 @@ public class EmbeddingAsyncService {
     public void generateEmbeddingForBookAsync(Book book) {
         generateEmbeddingForBookAsync(book, false);
     }
+
+    /**
+     * Xóa embedding của một cuốn sách trong background thread
+     * @param bookId ID của sách cần xóa embedding
+     */
+    @Async("embeddingTaskExecutor")
+    public void deleteEmbeddingForBookAsync(Long bookId) {
+        try {
+            log.info("🔄 Bắt đầu xóa embedding cho sách ID: {}", bookId);
+            boolean success = embeddingGenerator.deleteEmbeddingForBook(bookId);
+            if (success) {
+                log.info("✅ Đã xóa embedding thành công cho sách ID: {}", bookId);
+            } else {
+                log.warn("⚠️ Không tìm thấy embedding để xóa cho sách ID: {}", bookId);
+            }
+        } catch (Exception e) {
+            log.error("❌ Lỗi khi xóa embedding cho sách ID {}: {}", bookId, e.getMessage(), e);
+        }
+    }
 }
 
