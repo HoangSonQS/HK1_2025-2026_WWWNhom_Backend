@@ -7,7 +7,12 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "return_requests")
+@Table(
+        name = "return_requests",
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_return_request_order", columnNames = "order_id")
+        }
+)
 @Getter
 @Setter
 public class ReturnRequest {

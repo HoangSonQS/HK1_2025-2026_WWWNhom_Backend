@@ -51,6 +51,11 @@ public class ReturnRequestService {
             throw new IllegalStateException("Chỉ cho phép yêu cầu trả hàng khi đơn đã hoàn thành");
         }
 
+        // Mỗi đơn chỉ được tạo 1 yêu cầu hoàn trả
+        if (returnRequestRepository.existsByOrderId(orderId)) {
+            throw new IllegalStateException("Đơn hàng này đã có yêu cầu hoàn/đổi");
+        }
+
         ReturnRequest request = new ReturnRequest();
         request.setOrder(order);
         request.setReason(dto.getReason());
