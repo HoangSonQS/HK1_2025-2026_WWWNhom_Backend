@@ -103,9 +103,15 @@ public class ChatbotService {
 
         - Tự bịa thêm đơn hàng, ID đơn hàng, ngày đặt, trạng thái, số tiền, địa chỉ giao hàng, thông tin người nhận, v.v.
 
-        Nếu một thông tin KHÔNG có trong các context trên → bạn PHẢI nói:
+        - Tạo ra hoặc đề xuất bất kỳ thông tin nào không có trong context được cung cấp.
+
+        - Sử dụng thông tin từ conversation history để tạo ra dữ liệu giả (fake data).
+
+        ⚠️ QUY TẮC NGHIÊM NGẶT: Nếu một thông tin KHÔNG có trong các context trên → bạn PHẢI nói:
 
           "Trong hệ thống SEBook hiện tại không có sẵn thông tin này, nên tôi không thể trả lời chính xác."
+
+        - TUYỆT ĐỐI KHÔNG được tự tạo, bịa đặt, hoặc suy đoán thông tin dựa trên kiến thức chung.
 
         ===============================
 
@@ -481,12 +487,18 @@ public class ChatbotService {
             
             if (!semanticResults.isEmpty()) {
                 // Chuyển BookDTO về Book entity
+                // CHỈ lấy sách có isActive = true
                 List<Book> books = semanticResults.stream()
                         .map(bookDTO -> {
                             // Tìm Book từ ID
                             return bookRepository.findById(bookDTO.getId()).orElse(null);
                         })
                         .filter(book -> book != null)
+                        .filter(book -> {
+                            // CHỈ lấy sách có isActive = true
+                            boolean active = book.getIsActive() == null || Boolean.TRUE.equals(book.getIsActive());
+                            return active;
+                        })
                         .limit(10) // Lấy tối đa 10 sách từ semantic search
                         .collect(Collectors.toList());
                 
@@ -497,9 +509,10 @@ public class ChatbotService {
             }
             
             // ✅ Ưu tiên 2: Fallback về keyword matching từ database nếu semantic search không có kết quả
+            // CHỈ lấy sách có isActive = true
             // Tất cả sách đều từ database, không có sách bên ngoài
             log.info("⚠️ Semantic search không có kết quả, chuyển sang keyword matching từ database");
-            List<Book> allBooks = bookRepository.findAll();
+            List<Book> allBooks = bookRepository.findByIsActiveTrue();
             
             if (allBooks.isEmpty()) {
                 return List.of();
@@ -866,14 +879,34 @@ public class ChatbotService {
     private String buildOrderContext(Long accountId, String userMessage) {
         try {
             String lowerMessage = userMessage.toLowerCase();
+            // Mở rộng từ khóa để phát hiện tốt hơn các câu hỏi về đơn hàng
             boolean askingAboutOrder = lowerMessage.contains("đơn hàng") ||
+                    lowerMessage.contains("don hang") ||
                     lowerMessage.contains("order") ||
                     lowerMessage.contains("mua") ||
                     lowerMessage.contains("đã mua") ||
+                    lowerMessage.contains("da mua") ||
+                    lowerMessage.contains("đặt hàng") ||
+                    lowerMessage.contains("dat hang") ||
                     lowerMessage.contains("trạng thái") ||
+                    lowerMessage.contains("trang thai") ||
                     lowerMessage.contains("status") ||
                     lowerMessage.contains("giao hàng") ||
-                    lowerMessage.contains("shipping");
+                    lowerMessage.contains("giao hang") ||
+                    lowerMessage.contains("shipping") ||
+                    lowerMessage.contains("delivery") ||
+                    lowerMessage.contains("thanh toán") ||
+                    lowerMessage.contains("thanh toan") ||
+                    lowerMessage.contains("payment") ||
+                    lowerMessage.contains("hủy đơn") ||
+                    lowerMessage.contains("huy don") ||
+                    lowerMessage.contains("cancel order") ||
+                    lowerMessage.contains("đơn của tôi") ||
+                    lowerMessage.contains("don cua toi") ||
+                    lowerMessage.contains("my order") ||
+                    lowerMessage.contains("lịch sử mua") ||
+                    lowerMessage.contains("lich su mua") ||
+                    lowerMessage.contains("purchase history");
             // Lấy danh sách đơn hàng với fetch join để tránh LazyInitializationException
             List<OrderDTO> orders = getOrdersByAccountId(accountId);
             log.info("📦 Đã lấy {} đơn hàng cho account {}", orders.size(), accountId);

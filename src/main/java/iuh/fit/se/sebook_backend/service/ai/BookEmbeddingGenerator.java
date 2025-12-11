@@ -38,7 +38,8 @@ public class BookEmbeddingGenerator {
         log.info("🚀 Bắt đầu sinh embedding cho các sách chưa có...");
         
         try {
-            List<Book> allBooks = bookRepository.findAll();
+            // CHỈ tạo embedding cho sách có isActive = true
+            List<Book> allBooks = bookRepository.findByIsActiveTrue();
             int totalBooks = allBooks.size();
             int createdCount = 0;
             int skippedCount = 0;
@@ -139,6 +140,19 @@ public class BookEmbeddingGenerator {
     public boolean generateEmbeddingForBook(Book book, boolean forceRegenerate) {
         if (book == null) {
             log.warn("⚠️ Book is null, không thể tạo embedding");
+            return false;
+        }
+
+        // CHỈ tạo embedding cho sách có isActive = true
+        boolean active = book.getIsActive() == null || Boolean.TRUE.equals(book.getIsActive());
+        if (!active) {
+            log.warn("⚠️ Sách '{}' (ID: {}) có isActive = false, không tạo embedding", book.getTitle(), book.getId());
+            // Nếu sách không active, xóa embedding cũ nếu có
+            var existingEmbedding = embeddingRepository.findByBookId(book.getId());
+            if (existingEmbedding.isPresent()) {
+                embeddingRepository.delete(existingEmbedding.get());
+                log.info("✅ Đã xóa embedding cũ của sách không active: '{}' (ID: {})", book.getTitle(), book.getId());
+            }
             return false;
         }
 

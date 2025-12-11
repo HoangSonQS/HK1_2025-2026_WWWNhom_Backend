@@ -70,10 +70,11 @@ public class BookSearchService {
             }
 
             // 2. Load tất cả sách và embedding vào bộ nhớ (CHỈ từ database)
+            // CHỈ lấy sách có isActive = true
             // Tất cả sách đều từ database SEBook, không có sách bên ngoài
-            List<Book> allBooks = bookRepository.findAll();
+            List<Book> allBooks = bookRepository.findByIsActiveTrue();
             if (allBooks.isEmpty()) {
-                log.info("📚 Không có sách nào trong database");
+                log.info("📚 Không có sách nào active trong database");
                 return List.of();
             }
 
@@ -179,30 +180,30 @@ public class BookSearchService {
     private boolean isCategoryRelatedQuery(String queryLower, String[] queryWords) {
         // Danh sách từ khóa về thể loại (dựa trên các thể loại trong database)
         String[] categoryKeywords = {
-            "thể loại", "the loai", "loại", "loai", "category", "genre",
+            "thể loại", "the loai", "loại", "loai", "category", "genre", "thể loại sách", "the loai sach",
             // Văn học
-            "văn học", "van hoc", "literature", "fiction",
+            "văn học", "van hoc", "literature", "fiction", "văn chương", "van chuong",
             // Tiểu thuyết
-            "tiểu thuyết", "tieu thuyet", "novel",
+            "tiểu thuyết", "tieu thuyet", "novel", "tiểu thuyết", "tieu thuyet",
             // Lịch sử
-            "lịch sử", "lich su", "history", "sử liệu", "su lieu",
+            "lịch sử", "lich su", "history", "sử liệu", "su lieu", "historical", "lịch sử việt nam", "lich su viet nam",
             // Thiếu nhi
-            "thiếu nhi", "thieu nhi", "children", "kid", "trẻ em", "tre em",
+            "thiếu nhi", "thieu nhi", "children", "kid", "trẻ em", "tre em", "children's", "sách thiếu nhi", "sach thieu nhi",
             // Khoa học
-            "khoa học", "khoa hoc", "science", "khoa hoc tu nhien",
+            "khoa học", "khoa hoc", "science", "khoa học tự nhiên", "khoa hoc tu nhien", "scientific",
             // Kinh doanh
-            "kinh doanh", "kinh doanh", "business", "kinh tế", "kinh te", "economics",
+            "kinh doanh", "business", "kinh tế", "kinh te", "economics", "quản trị", "quan tri", "management",
             // Công nghệ thông tin
             "công nghệ", "cong nghe", "technology", "công nghệ thông tin", "cong nghe thong tin", 
-            "IT", "information technology", "lập trình", "lap trinh", "programming",
+            "IT", "information technology", "lập trình", "lap trinh", "programming", "coding", "software",
             // Chính trị
-            "chính trị", "chinh tri", "politics", "political",
+            "chính trị", "chinh tri", "politics", "political", "chính trị học", "chinh tri hoc",
             // Quân sự
-            "quân sự", "quan su", "military", "quốc phòng", "quoc phong",
+            "quân sự", "quan su", "military", "quốc phòng", "quoc phong", "defense",
             // Hồi ký - Tự truyện
-            "hồi ký", "hoi ky", "tự truyện", "tu truyen", "memoir", "autobiography",
+            "hồi ký", "hoi ky", "tự truyện", "tu truyen", "memoir", "autobiography", "hồi ký - tự truyện", "hoi ky - tu truyen",
             // Truyện tranh
-            "truyện tranh", "truyen tranh", "comic", "manga", "graphic novel",
+            "truyện tranh", "truyen tranh", "comic", "manga", "graphic novel", "truyện tranh", "truyen tranh",
             // Sách tẩm đá (có thể là lỗi đánh máy, nhưng vẫn hỗ trợ)
             "sách tẩm đá", "sach tam da"
         };
@@ -230,10 +231,21 @@ public class BookSearchService {
         
         // Tìm các thể loại có thể khớp với query
         Set<String> possibleCategories = new HashSet<>();
+        
+        // Kiểm tra toàn bộ query trước
+        for (Map.Entry<String, Set<String>> entry : keywordToCategories.entrySet()) {
+            if (queryLower.contains(entry.getKey())) {
+                possibleCategories.addAll(entry.getValue());
+            }
+        }
+        
+        // Kiểm tra từng từ trong query
         for (String word : queryWords) {
             if (word.length() > 2) {
                 for (Map.Entry<String, Set<String>> entry : keywordToCategories.entrySet()) {
-                    if (queryLower.contains(entry.getKey()) || entry.getKey().contains(word)) {
+                    String keyword = entry.getKey();
+                    // Kiểm tra cả từ đầy đủ và từng từ
+                    if (keyword.contains(word) || word.contains(keyword) || queryLower.contains(keyword)) {
                         possibleCategories.addAll(entry.getValue());
                     }
                 }
@@ -245,26 +257,36 @@ public class BookSearchService {
             if (category != null && category.getName() != null) {
                 String categoryName = category.getName().toLowerCase().trim();
                 
-                // 1. Kiểm tra exact match với tên thể loại
+                // 1. Kiểm tra exact match với tên thể loại (quan trọng nhất)
                 if (queryLower.contains(categoryName) || categoryName.contains(queryLower)) {
+                    log.debug("✅ Exact match: query '{}' khớp với thể loại '{}'", queryLower, categoryName);
                     return true;
                 }
                 
                 // 2. Kiểm tra với possible categories từ mapping
-                if (possibleCategories.contains(categoryName)) {
-                    return true;
-                }
-                
-                // 3. Kiểm tra từng từ khóa trong query có khớp với tên thể loại không
-                for (String word : queryWords) {
-                    if (word.length() > 2 && categoryName.contains(word)) {
+                for (String possibleCategory : possibleCategories) {
+                    if (categoryName.equals(possibleCategory) || categoryName.contains(possibleCategory) || possibleCategory.contains(categoryName)) {
+                        log.debug("✅ Mapping match: query '{}' khớp với thể loại '{}' qua mapping", queryLower, categoryName);
                         return true;
                     }
                 }
                 
-                // 4. Kiểm tra ngược lại: tên thể loại có chứa từ khóa không
+                // 3. Kiểm tra từng từ khóa trong query có khớp với tên thể loại không
                 for (String word : queryWords) {
-                    if (word.length() > 2 && word.contains(categoryName)) {
+                    if (word.length() > 2) {
+                        // Kiểm tra cả hai chiều
+                        if (categoryName.contains(word) || word.contains(categoryName)) {
+                            log.debug("✅ Word match: từ '{}' khớp với thể loại '{}'", word, categoryName);
+                            return true;
+                        }
+                    }
+                }
+                
+                // 4. Kiểm tra các từ trong tên thể loại có xuất hiện trong query không
+                String[] categoryWords = categoryName.split("\\s+");
+                for (String catWord : categoryWords) {
+                    if (catWord.length() > 2 && queryLower.contains(catWord)) {
+                        log.debug("✅ Category word match: từ '{}' trong thể loại '{}' xuất hiện trong query", catWord, categoryName);
                         return true;
                     }
                 }
