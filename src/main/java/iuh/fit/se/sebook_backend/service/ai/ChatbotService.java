@@ -1098,6 +1098,14 @@ public class ChatbotService {
                     .stream().findFirst().orElse(null);
             Order minQty = orderRepository.findTopByTotalQuantityAsc(PageRequest.of(0,1))
                     .stream().findFirst().orElse(null);
+            
+            // Fetch orderDetails cho maxQty và minQty để tránh LazyInitializationException
+            if (maxQty != null && maxQty.getId() != null) {
+                maxQty = orderRepository.findByIdWithDetails(maxQty.getId()).orElse(maxQty);
+            }
+            if (minQty != null && minQty.getId() != null) {
+                minQty = orderRepository.findByIdWithDetails(minQty.getId()).orElse(minQty);
+            }
 
             if (maxTotal == null && minTotal == null && maxQty == null && minQty == null) {
                 return "";
