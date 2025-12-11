@@ -97,17 +97,25 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Optional<Order> findByIdWithDetails(@Param("orderId") Long orderId);
 
     // Đơn hàng có tổng số lượng sản phẩm cao/thấp nhất
-    @Query("SELECT DISTINCT o FROM Order o " +
-           "LEFT JOIN FETCH o.orderDetails od " +
-           "LEFT JOIN FETCH od.book " +
+    // Sử dụng native query để tránh lỗi PostgreSQL với DISTINCT + ORDER BY aggregate
+    @Query(value = "SELECT o.* FROM orders o " +
+           "LEFT JOIN order_details od ON o.id = od.order_id " +
            "GROUP BY o.id " +
-           "ORDER BY COALESCE(SUM(od.quantity),0) DESC")
-    List<Order> findTopByTotalQuantityDesc(org.springframework.data.domain.Pageable pageable);
+           "ORDER BY COALESCE(SUM(od.quantity),0) DESC " +
+           "LIMIT :limit", nativeQuery = true)
+    List<Order> findTopByTotalQuantityDescNative(@Param("limit") int limit);
 
+    @Query(value = "SELECT o.* FROM orders o " +
+           "LEFT JOIN order_details od ON o.id = od.order_id " +
+           "GROUP BY o.id " +
+           "ORDER BY COALESCE(SUM(od.quantity),0) ASC " +
+           "LIMIT :limit", nativeQuery = true)
+    List<Order> findTopByTotalQuantityAscNative(@Param("limit") int limit);
+    
+    // JPQL queries để load với orderDetails (sử dụng sau khi đã có order IDs)
     @Query("SELECT DISTINCT o FROM Order o " +
            "LEFT JOIN FETCH o.orderDetails od " +
            "LEFT JOIN FETCH od.book " +
-           "GROUP BY o.id " +
-           "ORDER BY COALESCE(SUM(od.quantity),0) ASC")
-    List<Order> findTopByTotalQuantityAsc(org.springframework.data.domain.Pageable pageable);
+           "WHERE o.id IN :orderIds")
+    List<Order> findByIdsWithDetails(@Param("orderIds") List<Long> orderIds);
 }

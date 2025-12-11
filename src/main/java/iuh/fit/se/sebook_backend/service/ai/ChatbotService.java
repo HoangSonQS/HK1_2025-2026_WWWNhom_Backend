@@ -117,9 +117,13 @@ public class ChatbotService {
 
           "📚 THÔNG TIN SÁCH TRONG CỬA HÀNG SEBOOK".
 
+        - Tất cả sách trong phần này được tìm kiếm từ database SEBook sử dụng embedding từ table book_embedding.
+
         - Các trường bạn có thể sử dụng: tên sách, tác giả, giá, thể loại, tồn kho, tình trạng.
 
-        - Không tự bịa thêm nội dung cốt truyện, review, đánh giá… nếu context không cung cấp.
+        - KHÔNG tự bịa thêm nội dung cốt truyện, review, đánh giá… nếu context không cung cấp.
+
+        - KHÔNG được gợi ý hoặc đề cập đến sách nào không có trong phần context này.
 
         QUY TẮC:
 
@@ -127,21 +131,29 @@ public class ChatbotService {
 
         - Nếu "Tồn kho" = 0 → trả lời "Hết hàng" / "Hiện không còn sẵn".
 
-        ⚠️ CẤM GỢI Ý SÁCH NGOÀI DATABASE:
+        ⚠️ CẤM TUYỆT ĐỐI GỢI Ý SÁCH NGOÀI DATABASE:
 
         - KHÔNG ĐƯỢC đề xuất thêm sách nào mà context không liệt kê.
 
         - KHÔNG ĐƯỢC ghi: "Ngoài ra bạn có thể tham khảo ..." với những sách không nằm trong danh sách DB.
 
+        - KHÔNG ĐƯỢC tự bịa ra tên sách, tác giả, giá cả, mô tả, hoặc bất kỳ thông tin sách nào.
+
+        - KHÔNG ĐƯỢC sử dụng kiến thức chung về sách để gợi ý sách không có trong database.
+
+        - Tất cả sách được tìm kiếm từ database SEBook sử dụng embedding từ table book_embedding.
+
         - Nếu không có sách phù hợp trong context, hãy nói:
 
-          "Hiện tại trong kho SEBook không có cuốn sách phù hợp với yêu cầu của bạn."
+          "Hiện tại trong kho SEBook không có cuốn sách phù hợp với yêu cầu của bạn. Bạn có thể thử tìm kiếm với từ khóa khác hoặc liên hệ bộ phận hỗ trợ."
 
         Nếu người dùng hỏi gợi ý sách theo nhu cầu (ví dụ: "sách self-help", "sách thiếu nhi"):
 
-        - Chỉ chọn trong những sách đã được liệt kê trong context và phù hợp thể loại.
+        - CHỈ chọn trong những sách đã được liệt kê trong context và phù hợp thể loại.
 
-        - Nếu không có sách phù hợp trong context, nói rõ là không có dữ liệu phù hợp.
+        - Nếu không có sách phù hợp trong context, nói rõ là không có dữ liệu phù hợp trong kho SEBook.
+
+        - TUYỆT ĐỐI KHÔNG được gợi ý sách từ kiến thức chung hoặc sách nổi tiếng nếu chúng không có trong context.
 
         ============================================
 
@@ -413,18 +425,22 @@ public class ChatbotService {
             }
             conversationHistory.put(conversationId, chatHistory);
 
-            // 9. Tạo sources (danh sách sách được tham khảo - context đã dùng)
-            List<String> sources = relevantBooks.stream()
-                    .limit(3) // Chỉ lấy 3 sách đầu tiên
-                    .map(Book::getTitle)
-                    .collect(Collectors.toList());
-
-            // 10. Trích xuất tên sách được đề xuất từ response của AI
+            // 9. Trích xuất tên sách được đề xuất từ response của AI
             List<String> suggestedBooks = extractBookNames(aiResponse, relevantBooks);
             
-            // Nếu không tìm thấy sách nào được đề xuất trong response,
-            // thì dùng sources làm suggestedBooks (vì đó là những sách liên quan nhất)
-            if (suggestedBooks.isEmpty() && !sources.isEmpty()) {
+            // 10. Tạo sources (danh sách sách được tham khảo - những sách AI thực sự đề xuất)
+            // Ưu tiên sử dụng suggestedBooks vì đó là những sách AI thực sự đã đề cập trong response
+            List<String> sources;
+            if (!suggestedBooks.isEmpty()) {
+                // Nếu AI đã đề xuất sách, dùng chúng làm sources
+                sources = new ArrayList<>(suggestedBooks);
+            } else {
+                // Nếu không tìm thấy sách được đề xuất, lấy 3 sách đầu tiên từ danh sách tìm kiếm
+                sources = relevantBooks.stream()
+                        .limit(3)
+                        .map(Book::getTitle)
+                        .collect(Collectors.toList());
+                // Đồng thời dùng sources làm suggestedBooks
                 suggestedBooks = new ArrayList<>(sources);
             }
 
@@ -454,11 +470,13 @@ public class ChatbotService {
 
     /**
      * Tìm kiếm sách liên quan dựa trên tin nhắn của user (RAG)
-     * Ưu tiên sử dụng semantic search để tìm sách chính xác hơn
+     * CHỈ sử dụng sách từ database SEBook, sử dụng embedding từ table book_embedding
+     * KHÔNG trả về sách bên ngoài database
      */
     private List<Book> findRelevantBooks(String userMessage) {
         try {
-            // ✅ Ưu tiên 1: Sử dụng semantic search (tìm kiếm thông minh với embedding)
+            // ✅ Ưu tiên 1: Sử dụng semantic search với embedding từ table book_embedding
+            // Method smartSearch() sử dụng embedding đã được tạo sẵn trong database
             List<BookDTO> semanticResults = bookSearchService.smartSearch(userMessage, 10);
             
             if (!semanticResults.isEmpty()) {
@@ -478,8 +496,9 @@ public class ChatbotService {
                 }
             }
             
-            // ✅ Ưu tiên 2: Fallback về keyword matching nếu semantic search không có kết quả
-            log.info("⚠️ Semantic search không có kết quả, chuyển sang keyword matching");
+            // ✅ Ưu tiên 2: Fallback về keyword matching từ database nếu semantic search không có kết quả
+            // Tất cả sách đều từ database, không có sách bên ngoài
+            log.info("⚠️ Semantic search không có kết quả, chuyển sang keyword matching từ database");
             List<Book> allBooks = bookRepository.findAll();
             
             if (allBooks.isEmpty()) {
@@ -508,9 +527,10 @@ public class ChatbotService {
                     .limit(10) // Tăng lên 10 sách
                     .collect(Collectors.toList());
 
-            // ✅ Ưu tiên 3: Nếu vẫn không tìm thấy, trả về sách phổ biến (có nhiều quantity)
+            // ✅ Ưu tiên 3: Nếu vẫn không tìm thấy, trả về sách phổ biến từ database (có nhiều quantity)
+            // Tất cả đều từ database, không có sách bên ngoài
             if (relevantBooks.isEmpty()) {
-                log.info("⚠️ Keyword matching không có kết quả, trả về sách phổ biến");
+                log.info("⚠️ Keyword matching không có kết quả, trả về sách phổ biến từ database");
                 relevantBooks = allBooks.stream()
                         .sorted((a, b) -> Integer.compare(b.getQuantity(), a.getQuantity()))
                         .limit(5)
@@ -531,13 +551,15 @@ public class ChatbotService {
     private String buildContextFromBooks(List<Book> books) {
         if (books.isEmpty()) {
             return """
-                📚 THÔNG TIN SÁCH TRONG CỬA HÀNG:
+                📚 THÔNG TIN SÁCH TRONG CỬA HÀNG SEBOOK:
                 Hiện tại cửa hàng chưa có sách nào phù hợp với yêu cầu của khách hàng.
                 
-                ⚠️ HƯỚNG DẪN:
-                - Bạn có thể gợi ý sách từ kiến thức chung (sách nổi tiếng, sách phổ biến)
-                - Nhưng phải nói rõ: "Hiện tại cửa hàng chưa có sách này, nhưng bạn có thể tham khảo..."
-                - Hoặc: "Một số sách tương tự bạn có thể quan tâm (hiện chưa có trong cửa hàng)..."
+                ⚠️ QUY ĐỊNH BẮT BUỘC:
+                - Bạn PHẢI trả lời: "Hiện tại trong kho SEBook không có cuốn sách phù hợp với yêu cầu của bạn."
+                - KHÔNG ĐƯỢC gợi ý sách từ kiến thức chung hoặc sách bên ngoài database
+                - KHÔNG ĐƯỢC tự bịa ra tên sách, tác giả, giá cả, hoặc thông tin sách nào
+                - CHỈ được sử dụng sách có trong database của hệ thống SEBook
+                - Nếu không có sách phù hợp, hãy đề nghị khách hàng thử tìm kiếm với từ khóa khác hoặc liên hệ bộ phận hỗ trợ
                 """;
         }
 
@@ -545,19 +567,20 @@ public class ChatbotService {
         context.append("""
             📚 THÔNG TIN SÁCH TRONG CỬA HÀNG SEBOOK:
             Đây là danh sách các sách có sẵn trong cửa hàng phù hợp với yêu cầu của khách hàng.
+            Tất cả sách này được tìm kiếm từ database của hệ thống SEBook sử dụng embedding từ table book_embedding.
             
-            ⚠️ HƯỚNG DẪN GỢI Ý VÀ TRẢ LỜI:
-            1. ƯU TIÊN: Gợi ý các sách từ danh sách dưới đây trước (sách có sẵn trong cửa hàng)
-            2. TÌNH TRẠNG CÓ SẴN:
+            ⚠️ QUY ĐỊNH BẮT BUỘC KHI GỢI Ý VÀ TRẢ LỜI:
+            1. CHỈ ĐƯỢC gợi ý các sách từ danh sách dưới đây (sách có sẵn trong database)
+            2. KHÔNG ĐƯỢC gợi ý sách nào ngoài danh sách này, dù là sách nổi tiếng hay phổ biến
+            3. KHÔNG ĐƯỢC tự bịa ra tên sách, tác giả, giá cả, mô tả, hoặc thông tin sách nào
+            4. TÌNH TRẠNG CÓ SẴN:
                - Nếu "Tồn kho" > 0: Trả lời "Có sẵn" hoặc "Còn hàng"
                - Nếu "Tồn kho" = 0: Trả lời "Hết hàng" hoặc "Hiện không còn sẵn"
-            3. BỔ SUNG: Nếu khách hàng cần thêm gợi ý hoặc không hài lòng với danh sách, 
-               bạn có thể gợi ý thêm sách từ kiến thức chung, nhưng phải nói rõ:
-               "Ngoài ra, bạn cũng có thể tham khảo [tên sách] (hiện chưa có trong cửa hàng)"
-            4. GỢI Ý SÁCH TƯƠNG TỰ: Dựa trên thể loại, tác giả để gợi ý sách tương tự
-            5. TƯ VẤN: Hỏi về sở thích, mục đích đọc để đưa ra gợi ý phù hợp
+            5. GỢI Ý SÁCH TƯƠNG TỰ: CHỈ gợi ý sách tương tự từ danh sách dưới đây, dựa trên thể loại, tác giả
+            6. Nếu khách hàng hỏi về sách không có trong danh sách: 
+               → Trả lời: "Hiện tại trong kho SEBook không có cuốn sách này. Bạn có thể thử tìm kiếm với từ khóa khác hoặc liên hệ bộ phận hỗ trợ."
             
-            Danh sách sách có sẵn trong cửa hàng:
+            Danh sách sách có sẵn trong cửa hàng (từ database):
             
             """);
         
@@ -592,10 +615,12 @@ public class ChatbotService {
         
         context.append("""
             
-            ⚠️ LƯU Ý: 
-            - Ưu tiên gợi ý sách từ danh sách trên (sách có sẵn trong cửa hàng)
+            ⚠️ LƯU Ý CUỐI CÙNG: 
+            - CHỈ được gợi ý sách từ danh sách trên (sách có sẵn trong database SEBook)
             - Luôn kiểm tra "Tình trạng" để trả lời chính xác về việc có sẵn hay không
-            - Có thể bổ sung gợi ý sách bên ngoài nếu cần, nhưng phải phân biệt rõ ràng
+            - TUYỆT ĐỐI KHÔNG được gợi ý sách bên ngoài database, dù là sách nổi tiếng
+            - TUYỆT ĐỐI KHÔNG được tự bịa ra thông tin sách nào
+            - Nếu không có sách phù hợp trong danh sách, hãy nói rõ là không có trong kho SEBook
             """);
 
         return context.toString();
@@ -704,28 +729,62 @@ public class ChatbotService {
         List<String> suggested = new ArrayList<>();
         String responseLower = response.toLowerCase();
         
+        // Tạo map để lưu độ khớp (score) của mỗi sách
+        Map<String, Integer> bookScores = new HashMap<>();
+        
         // Kiểm tra xem response có đề cập đến sách nào trong database không
         for (Book book : relevantBooks) {
             String title = book.getTitle();
-            if (title != null) {
-                String titleLower = title.toLowerCase();
-                // Kiểm tra exact match hoặc partial match
-                if (responseLower.contains(titleLower) || 
-                    titleLower.contains(responseLower) ||
-                    // Kiểm tra từng từ trong title
-                    title.split("\\s+").length > 0 && 
-                    Arrays.stream(title.split("\\s+"))
-                        .anyMatch(word -> word.length() > 3 && responseLower.contains(word.toLowerCase()))) {
-                    suggested.add(title);
+            if (title != null && !title.trim().isEmpty()) {
+                String titleLower = title.toLowerCase().trim();
+                int score = 0;
+                
+                // 1. Exact match (quan trọng nhất) - điểm cao nhất
+                if (responseLower.contains("\"" + titleLower + "\"") || 
+                    responseLower.contains("'" + titleLower + "'") ||
+                    responseLower.contains(titleLower)) {
+                    // Kiểm tra exact match với dấu ngoặc kép hoặc không
+                    if (responseLower.contains("\"" + titleLower + "\"") || 
+                        responseLower.contains("'" + titleLower + "'")) {
+                        score = 100; // Exact match với dấu ngoặc kép
+                    } else if (responseLower.contains(titleLower)) {
+                        score = 80; // Exact match không có dấu ngoặc kép
+                    }
+                }
+                
+                // 2. Partial match - kiểm tra từng từ quan trọng trong title
+                String[] titleWords = titleLower.split("\\s+");
+                int matchedWords = 0;
+                for (String word : titleWords) {
+                    if (word.length() > 3 && responseLower.contains(word)) {
+                        matchedWords++;
+                    }
+                }
+                // Nếu tất cả từ quan trọng đều xuất hiện, đó là match tốt
+                if (matchedWords == titleWords.length && titleWords.length > 0) {
+                    score = Math.max(score, 60);
+                } else if (matchedWords > 0) {
+                    score = Math.max(score, 30 + matchedWords * 10);
+                }
+                
+                // Chỉ thêm nếu có điểm khớp
+                if (score > 0) {
+                    bookScores.put(title, score);
                 }
             }
         }
-
-        // Chỉ trả về sách từ database, không có sách nào khác
-        return suggested.stream()
+        
+        // Sắp xếp theo điểm khớp (cao nhất trước) và lấy top kết quả
+        List<String> result = bookScores.entrySet().stream()
+                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                .map(Map.Entry::getKey)
                 .distinct()
-                .limit(5) // Tăng lên 5 sách
+                .limit(10) // Lấy tối đa 10 sách
                 .collect(Collectors.toList());
+        
+        log.info("📚 Trích xuất được {} sách từ response: {}", result.size(), result);
+        
+        return result;
     }
 
     /**
@@ -1094,10 +1153,13 @@ public class ChatbotService {
         try {
             Order maxTotal = orderRepository.findTopByOrderByTotalAmountDesc();
             Order minTotal = orderRepository.findTopByOrderByTotalAmountAsc();
-            Order maxQty = orderRepository.findTopByTotalQuantityDesc(PageRequest.of(0,1))
-                    .stream().findFirst().orElse(null);
-            Order minQty = orderRepository.findTopByTotalQuantityAsc(PageRequest.of(0,1))
-                    .stream().findFirst().orElse(null);
+            
+            // Sử dụng native query để tránh lỗi PostgreSQL với DISTINCT + ORDER BY aggregate
+            List<Order> maxQtyOrders = orderRepository.findTopByTotalQuantityDescNative(1);
+            List<Order> minQtyOrders = orderRepository.findTopByTotalQuantityAscNative(1);
+            
+            Order maxQty = maxQtyOrders.isEmpty() ? null : maxQtyOrders.get(0);
+            Order minQty = minQtyOrders.isEmpty() ? null : minQtyOrders.get(0);
             
             // Fetch orderDetails cho maxQty và minQty để tránh LazyInitializationException
             if (maxQty != null && maxQty.getId() != null) {
