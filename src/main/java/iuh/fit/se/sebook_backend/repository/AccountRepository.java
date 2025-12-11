@@ -12,6 +12,9 @@ import java.util.Optional;
 public interface AccountRepository extends JpaRepository<Account, Long> {
     Optional<Account> findByUsername(String username);
     Optional<Account> findByEmail(String email);
+    Optional<Account> findByUsernameIgnoreCase(String username);
+    Optional<Account> findByEmailIgnoreCase(String email);
+    Optional<Account> findByUsernameOrEmailIgnoreCase(String username, String email);
     List<Account> findByPhoneNumber(String phoneNumber); // Đổi thành List để xử lý trường hợp có nhiều account
     List<Account> findByIsActiveTrue();
 

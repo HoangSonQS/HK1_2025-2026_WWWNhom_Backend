@@ -12,14 +12,3 @@ public class PingController {
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-

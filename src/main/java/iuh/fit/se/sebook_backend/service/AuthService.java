@@ -94,7 +94,14 @@ public class AuthService {
     }
 
     public AuthenticationResponse login(AuthenticationRequest request) {
-        Account account = accountRepository.findByUsername(request.getUsername())
+        String identifier = Optional.ofNullable(request.getUsername())
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .orElseThrow(() -> new IllegalArgumentException("Tên đăng nhập hoặc mật khẩu không đúng"));
+
+        // Cho phép đăng nhập bằng username hoặc email (không phân biệt hoa thường)
+        Account account = accountRepository.findByUsernameIgnoreCase(identifier)
+                .or(() -> accountRepository.findByEmailIgnoreCase(identifier))
                 .orElseThrow(() -> new IllegalArgumentException("Tên đăng nhập hoặc mật khẩu không đúng"));
 
         if (!passwordEncoder.matches(request.getPassword(), account.getPassword())) {
